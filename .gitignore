@@ -22,5 +22,5 @@ Thumbs.db
 .claude/settings.local.json
 
 # Client financial data (confidential, never commit)
-data/
+/data/
 
