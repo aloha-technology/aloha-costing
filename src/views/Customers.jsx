@@ -30,7 +30,8 @@ function CustomerList({ model, pmsById, open }) {
   const columns = [
     { key: 'name', label: 'Customer', render: (c) => <strong>{c.name}</strong> },
     { key: 'pms', label: 'PMs', render: pmNames, sort: pmNames },
-    { key: 'revenueUSD', label: 'Revenue', align: 'right', render: (c) => usd(c.revenueUSD) },
+    { key: 'revenueUSD', label: 'Revenue $', align: 'right', render: (c) => usd(c.revenueUSD) },
+    { key: 'revenueINR', label: 'Revenue ₹', align: 'right', render: (c) => inr(c.revenueINR) },
     { key: 'costINR', label: 'Cost', align: 'right', render: (c) => inr(c.costINR) },
     { key: 'margin', label: 'Margin', align: 'right', render: (c) => <Margin value={c.margin} target={target} />, sort: (c) => c.margin ?? -1 },
     { key: 'gapINR', label: 'Gap / month', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
