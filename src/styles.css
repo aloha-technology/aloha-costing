@@ -203,3 +203,29 @@ input.num { width: 64px; font: inherit; padding: 3px 6px; border: 1px solid var(
 .assign-form label { display: flex; gap: 6px; align-items: center; }
 td.nowrap { white-space: nowrap; }
 button.linkish.assign { margin-left: 8px; }
+
+/* Play */
+.subnav { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.subnav button { border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 5px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 13px; }
+.subnav button.on { background: var(--accent); border-color: var(--accent); color: var(--card); font-weight: 600; }
+.sim-head select { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+.scen-pill { background: var(--accent-soft); color: var(--accent); }
+.levers { list-style: none; margin: 0; padding: 0; }
+.levers li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 4px; border-top: 1px solid var(--line); }
+.levers li.on { background: var(--good-bg); }
+.lever-detail { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.lever-fx { text-align: right; font-size: 13px; white-space: nowrap; }
+.switch { position: relative; width: 38px; height: 22px; display: inline-block; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; background: var(--line); border-radius: 999px; cursor: pointer; transition: background 0.15s; }
+.switch span::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: var(--card); border-radius: 50%; transition: transform 0.15s; }
+.switch input:checked + span { background: var(--good); }
+.switch input:checked + span::before { transform: translateX(16px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.plans { display: grid; gap: 10px; }
+.plan { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.plan.ok { border-left: 4px solid var(--good); }
+.plan.short { border-left: 4px solid var(--warn); }
+.plan ol { margin: 6px 0 0; padding-left: 20px; }
+th.active-col, td.active-col { background: var(--accent-soft); }
+@media (max-width: 600px) { .levers li { grid-template-columns: auto 1fr; } .lever-fx { grid-column: 2; text-align: left; } }

@@ -4,23 +4,17 @@ import { Kpi, Margin } from './ui.jsx';
 import { simulate, allocKey } from '../engine/scenario.js';
 import { scenarioActions } from '../actions/fromScenario.js';
 import { isClosed } from '../actions/logic.js';
+import { useScenarios } from './useScenarios.js';
 
 // Employees, their allocations and salaries, plus a what-if scenario. Admin + leadership only.
-// Scenarios live in this browser only (localStorage) and never change real data.
-const STORE = 'aloha-scenario-v1';
-const empty = { alloc: {}, released: {}, added: [] };
-
-function loadScenario(period) {
-  try {
-    const s = JSON.parse(localStorage.getItem(STORE) || 'null');
-    return s && s.period === period ? { alloc: s.alloc || {}, released: s.released || {}, added: s.added || [] } : empty;
-  } catch {
-    return empty;
-  }
-}
+// Scenarios live in this browser only (useScenarios) and never change real data. Edits here go
+// into the active scenario's manual changes; levers switched on in Play also apply.
 
 export default function People({ model, pmsById, go, store, can }) {
-  const [scenario, setScenario] = useState(() => loadScenario(model.period));
+  const scen = useScenarios(model);
+  const scenario = scen.effective; // manual edits + levers
+  const manual = scen.active.manual;
+  const setScenario = scen.updateManual;
   const [q, setQ] = useState('');
   const [customer, setCustomer] = useState('');
   const [pm, setPm] = useState('');
@@ -30,13 +24,6 @@ export default function People({ model, pmsById, go, store, can }) {
   const [reviewing, setReviewing] = useState(false);
   const [assigning, setAssigning] = useState(null); // empId with the Assign form open
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORE, JSON.stringify({ period: model.period, ...scenario }));
-    } catch {
-      /* storage blocked: scenario just won't persist */
-    }
-  }, [scenario, model.period]);
 
   const sim = useMemo(() => simulate(model, scenario), [model, scenario]);
   const custAfter = useMemo(() => new Map(sim.customers.map((c) => [c.code, c])), [sim]);
@@ -132,6 +119,10 @@ export default function People({ model, pmsById, go, store, can }) {
       <section className="card sim-bar">
         <div className="sim-head">
           <h2>What-if</h2>
+          <span className="pill scen-pill" title="Switch or compare scenarios on the Play tab">
+            <a onClick={() => go('play')}>{scen.active.name}</a>
+            {scen.active.levers.length ? ` · ${scen.active.levers.length} lever${scen.active.levers.length === 1 ? '' : 's'} on` : ''}
+          </span>
           <span className="muted">
             {sim.changes ? `${sim.changes} change${sim.changes === 1 ? '' : 's'} · only in this browser, real data unchanged` : 'Change time, billable or release below to see the effect.'}
           </span>
@@ -139,7 +130,7 @@ export default function People({ model, pmsById, go, store, can }) {
           <label>
             <input type="checkbox" checked={onlyChanged} onChange={(e) => setOnlyChanged(e.target.checked)} /> Show changes only
           </label>
-          <button className="small" disabled={!sim.changes} onClick={() => setScenario(empty)}>
+          <button className="small" disabled={!sim.changes} onClick={scen.reset}>
             Reset all
           </button>
           {can.edit && (
@@ -335,7 +326,7 @@ export default function People({ model, pmsById, go, store, can }) {
                           Remove
                         </button>
                       ) : (
-                        changedKeys.has(key) &&
+                        manual.alloc[key] &&
                         !gone && (
                           <button className="linkish" onClick={() => undoAlloc(key)}>
                             Undo
@@ -382,7 +373,7 @@ const cost = ({ e, a }) => ((e.ctcMonthlyINR || 0) * (a?.utilPct || 0)) / 100;
 const pmForBench = (model, e) => model.bench.find((b) => b.empId === e.empId)?.pmId || null;
 
 // Review list: one proposed action per change; tick which to create.
-function ScenarioReview({ model, sim, scenario, store, pmsById, go, close }) {
+export function ScenarioReview({ model, sim, scenario, store, pmsById, go, close }) {
   const proposals = useMemo(() => scenarioActions(model, sim, scenario), [model, sim, scenario]);
   const tracked = (p) => {
     const a = store.byFinding.get(p.input.findingId);

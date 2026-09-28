@@ -51,6 +51,29 @@ export function scenarioActions(model, sim, scenario) {
     });
   }
 
+  for (const r of sim.rateRows || []) {
+    if (!r.ownerPm) continue;
+    const c = custByCode.get(r.code);
+    out.push({
+      id: `scenario:rate:${r.code}`,
+      kind: 'change',
+      input: {
+        customerCode: r.code,
+        customerName: r.customer,
+        findingId: `scenario:rate:${r.code}`,
+        kind: 'SCENARIO_RATE',
+        severity: c?.belowTarget ? 'high' : 'medium',
+        title: `Negotiate a ${r.ratePct > 0 ? '+' : ''}${r.ratePct}% rate change with ${r.customer}`,
+        ask: `Propose a ${r.ratePct}% rate increase to ${r.customer}`,
+        description: `Proposed from a costing review of ${r.customer}. Please prepare the case for a ${r.ratePct}% rate increase and share the customer's response.`,
+        ownerPmId: r.ownerPm,
+        dueDate: defaultDue(c?.belowTarget ? 'high' : 'medium'),
+        savingINR: Math.max(0, r.dRevenueINR),
+        period: model.period,
+      },
+    });
+  }
+
   const empById = new Map((model.employees || []).map((e) => [e.empId, e]));
   const benchPm = new Map(model.bench.map((b) => [b.empId, b.pmId]));
   for (const id of Object.keys(scenario.released || {}).filter((k) => scenario.released[k])) {

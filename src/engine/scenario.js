@@ -4,6 +4,7 @@
 //   alloc:    { [allocKey]: { utilPct?, billable? } }   // changed allocations
 //   released: { [empId]: true }                          // people leaving the company
 //   added:    [{ id, empId, code, utilPct, billable }]   // free time assigned to a customer
+//   rates:    { [customerCode]: pct }                    // billing rate change, e.g. 10 = +10%
 // }
 //
 // Rules (shown to the user on screen):
@@ -12,8 +13,8 @@
 //   saves when people are released or their freed time is reused elsewhere.
 // - Billing follows billable time at the person's seat rate on that project (their role's rate,
 //   else the customer's average seat rate, else revenue per billed seat), calibrated so the
-//   customer's current billable time adds up to what it was actually invoiced. So removing all
-//   billable time takes revenue to ~0, never below.
+//   customer's current billable time adds up to what it was actually invoiced (so removing all
+//   billable time takes revenue to ~0, never below). Added billing is capped at the seat rate.
 
 export const allocKey = (code, empId, project) => `${code}|${empId}|${project}`;
 
@@ -57,7 +58,9 @@ export function simulate(model, scenario = {}) {
       const { rateUSD, basis } = seatRate(c, p.designation, p.project);
       const oldBilled = p.billable ? p.utilPct : 0;
       const newBilled = newBillable ? newUtil : 0;
-      const dRev = ((rateUSD * calib * (newBilled - oldBilled)) / 100) * (c.fx || model.fx || 0);
+      // Removing billed time is calibrated to the real invoice; adding is capped at the listed seat rate.
+      const mult = newBilled < oldBilled ? calib : Math.min(calib, 1);
+      const dRev = ((rateUSD * mult * (newBilled - oldBilled)) / 100) * (c.fx || model.fx || 0);
       if (!dCost && !dRev && newUtil === p.utilPct && newBillable === p.billable) continue;
       const d = custDelta.get(c.code) || { cost: 0, revenue: 0 };
       d.cost += dCost;
@@ -78,7 +81,7 @@ export function simulate(model, scenario = {}) {
     const calib = implied > 0 ? c.revenueUSD / implied : 1;
     const { rateUSD, basis } = seatRate(c, e.designation, null);
     const dCost = ((e.ctcMonthlyINR || 0) * add.utilPct) / 100;
-    const dRev = add.billable ? ((rateUSD * calib * add.utilPct) / 100) * (c.fx || model.fx || 0) : 0;
+    const dRev = add.billable ? ((rateUSD * Math.min(calib, 1) * add.utilPct) / 100) * (c.fx || model.fx || 0) : 0;
     const d = custDelta.get(c.code) || { cost: 0, revenue: 0 };
     d.cost += dCost;
     d.revenue += dRev;
@@ -108,15 +111,20 @@ export function simulate(model, scenario = {}) {
     if (e) dBench -= ((e.ctcMonthlyINR || 0) * e.benchPct) / 100;
   }
 
+  const rates = scenario.rates || {};
+  const rateRows = [];
   const customers = model.customers.map((c) => {
     const d = custDelta.get(c.code) || { cost: 0, revenue: 0 };
-    const revenueINR = Math.max(0, c.revenueINR + d.revenue);
+    const ratePct = Number(rates[c.code]) || 0;
+    const dRate = (c.revenueINR * ratePct) / 100;
+    if (ratePct) rateRows.push({ code: c.code, customer: c.name, ratePct, dRevenueINR: dRate, ownerPm: c.accountPm || c.pmIds?.[0] || null });
+    const revenueINR = Math.max(0, c.revenueINR + d.revenue + dRate);
     const costINR = c.costINR + d.cost;
     const margin = marginOf(revenueINR, costINR);
     return {
       code: c.code,
       name: c.name,
-      changed: custDelta.has(c.code),
+      changed: custDelta.has(c.code) || Boolean(ratePct),
       before: { revenueINR: c.revenueINR, costINR: c.costINR, margin: c.margin, belowTarget: c.belowTarget, gapINR: c.gapINR },
       after: {
         revenueINR,
@@ -149,12 +157,89 @@ export function simulate(model, scenario = {}) {
   const after = totals('after', afterBench);
   return {
     rows,
+    rateRows,
     customers,
     before,
     after,
     // Positive = money saved per month across the company (customer cost + bench, net of billing change).
     netMonthlyINR: before.costINR + before.benchCostINR - (after.costINR + after.benchCostINR) + (after.revenueINR - before.revenueINR),
     overAllocated,
-    changes: rows.filter((r) => !r.released).length + Object.values(released).filter(Boolean).length,
+    changes: rows.filter((r) => !r.released).length + Object.values(released).filter(Boolean).length + rateRows.length,
   };
+}
+
+// --- Combining scenario parts -------------------------------------------------------------
+// A "part" is a partial scenario ({ alloc, released, added, rates }). Levers, plans and the
+// user's manual edits are all parts; merge() combines them (later parts win on conflicts).
+export function merge(parts) {
+  const out = { alloc: {}, released: {}, added: [], rates: {} };
+  for (const p of parts) {
+    if (!p) continue;
+    for (const [k, v] of Object.entries(p.alloc || {})) out.alloc[k] = { ...out.alloc[k], ...v };
+    for (const [k, v] of Object.entries(p.released || {})) if (v) out.released[k] = true;
+    for (const a of p.added || []) out.added.push(a);
+    for (const [k, v] of Object.entries(p.rates || {})) out.rates[k] = v;
+  }
+  return out;
+}
+
+// Split a scenario into one part per individual change, so each can be measured on its own.
+export function splitParts(model, sc, prefix = 'm') {
+  const emp = new Map((model.employees || []).map((e) => [e.empId, e]));
+  const cust = new Map(model.customers.map((c) => [c.code, c]));
+  const items = [];
+  for (const [key, v] of Object.entries(sc.alloc || {})) {
+    const [code, empId] = key.split('|');
+    const what = [v.utilPct != null ? `time → ${v.utilPct}%` : null, v.billable != null ? (v.billable ? 'billable' : 'not billable') : null].filter(Boolean).join(', ');
+    items.push({ id: `${prefix}:alloc:${key}`, label: `${emp.get(empId)?.name || empId} on ${cust.get(code)?.name || code}: ${what}`, part: { alloc: { [key]: v } } });
+  }
+  for (const id of Object.keys(sc.released || {}).filter((k) => sc.released[k]))
+    items.push({ id: `${prefix}:rel:${id}`, label: `Release ${emp.get(id)?.name || id}`, part: { released: { [id]: true } } });
+  for (const a of sc.added || [])
+    items.push({ id: `${prefix}:add:${a.id}`, label: `Assign ${emp.get(a.empId)?.name || a.empId} to ${cust.get(a.code)?.name || a.code} at ${a.utilPct}%${a.billable ? ', billable' : ''}`, part: { added: [a] } });
+  for (const [code, pct] of Object.entries(sc.rates || {}))
+    if (pct) items.push({ id: `${prefix}:rate:${code}`, label: `${cust.get(code)?.name || code}: rate ${pct > 0 ? '+' : ''}${pct}%`, part: { rates: { [code]: pct } } });
+  return items;
+}
+
+// How much each item contributes: 'alone' (only that item) and 'inCombination' (the combined
+// result minus the result without it). Sorted by contribution.
+export function contributions(model, items) {
+  const all = simulate(model, merge(items.map((i) => i.part)));
+  return items
+    .map((it, idx) => {
+      const alone = simulate(model, merge([it.part]));
+      const without = simulate(model, merge(items.filter((_, j) => j !== idx).map((i) => i.part)));
+      return {
+        ...it,
+        aloneINR: alone.netMonthlyINR,
+        inCombinationINR: all.netMonthlyINR - without.netMonthlyINR,
+        marginPts: ((all.after.margin ?? 0) - (without.after.margin ?? 0)) * 100,
+        gapChangeINR: all.after.gapINR - without.after.gapINR,
+      };
+    })
+    .sort((a, b) => b.inCombinationINR - a.inCombinationINR || a.gapChangeINR - b.gapChangeINR);
+}
+
+// Estimated PM figures before/after, using each customer's PM split (as the PMs tab does).
+export function pmRollup(model, sim) {
+  const after = new Map(sim.customers.map((c) => [c.code, c]));
+  return model.pms
+    .filter((p) => p.customers)
+    .map((pm) => {
+      const acc = { before: { rev: 0, cost: 0, gap: 0 }, after: { rev: 0, cost: 0, gap: 0 } };
+      for (const c of model.customers.filter((x) => x.pmIds.includes(pm.id))) {
+        const split = c.pmSplit.find((x) => x.pmId === pm.id);
+        const rs = split ? split.revenueShare : 1 / c.pmIds.length;
+        const cs = split && c.computedCostINR > 0 ? split.costShare : rs;
+        const a = after.get(c.code);
+        for (const side of ['before', 'after']) {
+          acc[side].rev += a[side].revenueINR * rs;
+          acc[side].cost += a[side].costINR * cs;
+          acc[side].gap += a[side].gapINR * cs;
+        }
+      }
+      const m = (x) => (x.rev > 0 ? (x.rev - x.cost) / x.rev : null);
+      return { id: pm.id, name: pm.name, before: { ...acc.before, margin: m(acc.before) }, after: { ...acc.after, margin: m(acc.after) } };
+    });
 }

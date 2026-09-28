@@ -61,6 +61,10 @@ Aloha builds IT solutions for small businesses.
 - Revenue basis: the invoiced amount (invoicing file) when the customer is on it, else the costing
   sheet. The costing sheet double-counts some invoices across customers; differences are flagged
   (INVOICE_MISMATCH) and listed in Data checks.
+- Play tab (admin + leadership): named scenarios (`src/views/useScenarios.js`, localStorage),
+  levers + reach-70% planner (`src/engine/levers.js`; rate rises capped at 25%), per-change
+  contributions, scenario compare, before/after incl. PM roll-up. Added billing is capped at
+  the seat rate; removed billing is calibrated to the invoice.
 - People tab (admin + leadership): every employee with allocations and CTC, plus a what-if
   scenario (`src/engine/scenario.js`, stored in localStorage only). `model.employees` is admin-only.
 - COST_DRIVER deliberately includes PMs (a PM can be flagged as the biggest cost driver on their
