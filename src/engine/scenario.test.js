@@ -51,12 +51,45 @@ test('releasing that person saves their cost and their bench time', () => {
 
 test('making someone billable adds revenue at their seat rate', () => {
   assert.deepEqual(seatRate(model.customers[0], 'Developer', 'Acme- Priya'), { rateUSD: 500, basis: 'Developer seat rate' });
+  // Acme invoices $1,000 for one billable developer listed at $500, so billing is calibrated x2.
   const s = simulate(model, { alloc: { [key('11')]: { billable: true } } });
-  assert.equal(s.customers[0].after.revenueINR, 125000); // + $500 x 50% x 100
-  assert.equal(s.netMonthlyINR, 25000);
+  assert.equal(s.customers[0].after.revenueINR, 150000); // + $500 x 2 x 50% x 100
+  assert.equal(s.netMonthlyINR, 50000);
 });
 
 test('adding time beyond 100% is reported', () => {
   const s = simulate(model, { alloc: { [key('10')]: { utilPct: 120 } } });
   assert.equal(s.overAllocated.length, 1);
+});
+
+import { scenarioActions } from '../actions/fromScenario.js';
+
+test('scenario becomes PM-safe actions with owners and savings', () => {
+  const m = {
+    ...model,
+    period: 'September 2026',
+    bench: [],
+    customers: model.customers.map((c) => ({ ...c, pmIds: ['pm@x'], accountPm: 'pm@x', people: c.people.map((p) => ({ ...p, ownerPm: 'pm@x' })) })),
+    employees: [
+      { empId: '10', name: 'Dev A', designation: 'Developer', ctcMonthlyINR: 20000, benchPct: 0, idlePct: 0, allocations: [{ code: 'C1', customer: 'Acme', utilPct: 100, ownerPm: 'pm@x' }] },
+      { empId: '11', name: 'Dev B', designation: 'Developer', ctcMonthlyINR: 20000, benchPct: 50, idlePct: 0, allocations: [{ code: 'C1', customer: 'Acme', utilPct: 50, ownerPm: 'pm@x' }] },
+    ],
+  };
+  const scenario = { alloc: { [key('11')]: { utilPct: 0 }, [key('10')]: { utilPct: 80 } }, released: { '11': true } };
+  const acts = scenarioActions(m, simulate(m, { alloc: { [key('11')]: { utilPct: 0 }, [key('10')]: { utilPct: 80 } } }), scenario);
+  const off = acts.find((a) => a.input.findingId === `scenario:${key('11')}`);
+  assert.equal(off.input.title, 'Take Dev B (Developer) off Acme (50% → 0%)');
+  assert.equal(off.input.ownerPmId, 'pm@x');
+  assert.equal(off.input.savingINR, 10000);
+  assert.equal(off.input.severity, 'high');
+  const less = acts.find((a) => a.input.findingId === `scenario:${key('10')}`);
+  assert.match(less.input.title, /^Reduce time 100% → 80%: Dev A/);
+  const rel = acts.find((a) => a.kind === 'release');
+  assert.match(rel.input.title, /Plan release or redeployment of Dev B/);
+  for (const a of acts) for (const t of [a.input.title, a.input.ask, a.input.description]) assert.doesNotMatch(t, /₹|20,000|10,000|margin \d/);
+});
+
+test('removing all billable time takes revenue to zero, never below', () => {
+  const s = simulate(model, { alloc: { [key('10')]: { utilPct: 0 } } });
+  assert.equal(s.customers[0].after.revenueINR, 0);
 });

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { inr, pct } from '../format.js';
 import { Kpi, Margin } from './ui.jsx';
 import { simulate, allocKey } from '../engine/scenario.js';
+import { scenarioActions } from '../actions/fromScenario.js';
+import { isClosed } from '../actions/logic.js';
 
 // Employees, their allocations and salaries, plus a what-if scenario. Admin + leadership only.
 // Scenarios live in this browser only (localStorage) and never change real data.
@@ -17,7 +19,7 @@ function loadScenario(period) {
   }
 }
 
-export default function People({ model, pmsById, go }) {
+export default function People({ model, pmsById, go, store, can }) {
   const [scenario, setScenario] = useState(() => loadScenario(model.period));
   const [q, setQ] = useState('');
   const [customer, setCustomer] = useState('');
@@ -25,6 +27,7 @@ export default function People({ model, pmsById, go }) {
   const [roleF, setRoleF] = useState('');
   const [onlyNonBillable, setOnlyNonBillable] = useState(false);
   const [onlyChanged, setOnlyChanged] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => {
     try {
@@ -105,7 +108,15 @@ export default function People({ model, pmsById, go }) {
           <button className="small" disabled={!sim.changes} onClick={() => setScenario(empty)}>
             Reset all
           </button>
+          {can.edit && (
+            <button className="primary" disabled={!sim.changes} onClick={() => setReviewing((r) => !r)}>
+              Turn into actions…
+            </button>
+          )}
         </div>
+        {reviewing && sim.changes > 0 && (
+          <ScenarioReview model={model} sim={sim} scenario={scenario} store={store} pmsById={pmsById} go={go} close={() => setReviewing(false)} />
+        )}
         <div className="kpis compact-kpis">
           <Kpi label="Margin (customers)" value={delta(b.margin * 100, a.margin * 100, (v) => v.toFixed(1) + '%', 0.05)} tone={a.margin > b.margin + 1e-9 ? 'good' : a.margin < b.margin - 1e-9 ? 'bad' : ''} />
           <Kpi label="Margin after bench" value={delta(b.marginAfterBench * 100, a.marginAfterBench * 100, (v) => v.toFixed(1) + '%', 0.05)} tone={a.marginAfterBench > b.marginAfterBench + 1e-9 ? 'good' : a.marginAfterBench < b.marginAfterBench - 1e-9 ? 'bad' : ''} />
@@ -121,7 +132,7 @@ export default function People({ model, pmsById, go }) {
           <summary>How this is calculated</summary>
           Cost changes by monthly CTC × change in time, on top of the costing sheet's cost. Time taken off a customer goes to bench unless the person is
           released, so the company only saves when people are released or their time is reused on another customer. Billing follows billable time at
-          the person's seat rate on that project (their role's rate, else the customer's average seat rate).
+          the person's seat rate on that project (their role's rate, else the customer's average seat rate), calibrated so each customer's current billable time adds up to what it was actually invoiced.
         </details>
       </section>
 
@@ -273,3 +284,72 @@ export default function People({ model, pmsById, go }) {
 
 const cost = ({ e, a }) => ((e.ctcMonthlyINR || 0) * (a?.utilPct || 0)) / 100;
 const pmForBench = (model, e) => model.bench.find((b) => b.empId === e.empId)?.pmId || null;
+
+// Review list: one proposed action per change; tick which to create.
+function ScenarioReview({ model, sim, scenario, store, pmsById, go, close }) {
+  const proposals = useMemo(() => scenarioActions(model, sim, scenario), [model, sim, scenario]);
+  const tracked = (p) => {
+    const a = store.byFinding.get(p.input.findingId);
+    return a && !isClosed(a) ? a : null;
+  };
+  // Changes are ticked by default; releases are sensitive (the PM sees them), so they start unticked.
+  const [picked, setPicked] = useState(() => new Set(proposals.filter((p) => p.kind === 'change' && !tracked(p)).map((p) => p.id)));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const toggle = (id) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const chosen = proposals.filter((p) => picked.has(p.id) && !tracked(p));
+
+  const create = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const created = await store.create(chosen.map((p) => p.input));
+      setMsg({ ok: true, text: `Created ${created.length} action${created.length === 1 ? '' : 's'}.` });
+      setPicked(new Set());
+    } catch (e) {
+      setMsg({ ok: false, text: e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="action-form review">
+      <div className="wide">
+        <strong>Actions from this scenario</strong>{' '}
+        <span className="muted">PMs will see the action text (no salaries or costs). Estimated savings stay admin-only.</span>
+      </div>
+      <table className="wide">
+        <tbody>
+          {proposals.map((p) => {
+            const t = tracked(p);
+            return (
+              <tr key={p.id} className={p.kind === 'release' ? 'release' : ''}>
+                <td>
+                  <input type="checkbox" disabled={Boolean(t)} checked={!t && picked.has(p.id)} onChange={() => toggle(p.id)} />
+                </td>
+                <td>
+                  {p.input.title}
+                  {p.kind === 'release' && <div className="warn-text small-text">Sensitive: the PM will see this, including in their WhatsApp digest.</div>}
+                </td>
+                <td>{pmsById[p.input.ownerPmId]?.name || p.input.ownerPmId}</td>
+                <td className="muted">due {p.input.dueDate}</td>
+                <td className="r">{p.input.savingINR ? inr(p.input.savingINR) + '/mo' : '—'}</td>
+                <td>{t ? <a onClick={() => go('actions', t.id)}>already an action</a> : ''}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="row">
+        <button className="primary" disabled={busy || !chosen.length} onClick={create}>
+          Create {chosen.length} action{chosen.length === 1 ? '' : 's'}
+        </button>
+        <button className="small" onClick={close}>
+          Close
+        </button>
+        {msg && (msg.ok ? <span className="good-text">{msg.text} <a onClick={() => go('actions')}>View actions</a></span> : <span className="err">{msg.text}</span>)}
+      </div>
+    </div>
+  );
+}

@@ -10,7 +10,9 @@
 // - Time taken off customers goes to bench unless the person is released, so the company only
 //   saves when people are released or their freed time is reused elsewhere.
 // - Billing follows billable time at the person's seat rate on that project (their role's rate,
-//   else the customer's average seat rate, else revenue per billed seat).
+//   else the customer's average seat rate, else revenue per billed seat), calibrated so the
+//   customer's current billable time adds up to what it was actually invoiced. So removing all
+//   billable time takes revenue to ~0, never below.
 
 export const allocKey = (code, empId, project) => `${code}|${empId}|${project}`;
 
@@ -39,6 +41,9 @@ export function simulate(model, scenario = {}) {
   const rows = []; // one per changed allocation
 
   for (const c of model.customers) {
+    // Calibration: actual invoiced revenue / billing implied by billable time x seat rates.
+    const implied = c.people.reduce((a, p) => a + (p.billable ? (seatRate(c, p.designation, p.project).rateUSD * p.utilPct) / 100 : 0), 0);
+    const calib = implied > 0 ? c.revenueUSD / implied : 1;
     for (const p of c.people) {
       const key = allocKey(c.code, p.empId, p.project);
       const ch = alloc[key];
@@ -51,14 +56,14 @@ export function simulate(model, scenario = {}) {
       const { rateUSD, basis } = seatRate(c, p.designation, p.project);
       const oldBilled = p.billable ? p.utilPct : 0;
       const newBilled = newBillable ? newUtil : 0;
-      const dRev = ((rateUSD * (newBilled - oldBilled)) / 100) * (c.fx || model.fx || 0);
+      const dRev = ((rateUSD * calib * (newBilled - oldBilled)) / 100) * (c.fx || model.fx || 0);
       if (!dCost && !dRev && newUtil === p.utilPct && newBillable === p.billable) continue;
       const d = custDelta.get(c.code) || { cost: 0, revenue: 0 };
       d.cost += dCost;
       d.revenue += dRev;
       custDelta.set(c.code, d);
       personDelta.set(p.empId, (personDelta.get(p.empId) || 0) + (newUtil - p.utilPct));
-      rows.push({ key, code: c.code, customer: c.name, empId: p.empId, name: p.name, designation: p.designation, from: { utilPct: p.utilPct, billable: p.billable }, to: { utilPct: newUtil, billable: newBillable }, dCostINR: dCost, dRevenueINR: dRev, rateBasis: basis, released: Boolean(gone) });
+      rows.push({ key, code: c.code, customer: c.name, empId: p.empId, name: p.name, designation: p.designation, ownerPm: p.ownerPm || c.accountPm, isPm: Boolean(p.isPm), from: { utilPct: p.utilPct, billable: p.billable }, to: { utilPct: newUtil, billable: newBillable }, dCostINR: dCost, dRevenueINR: dRev, rateBasis: `${basis}${Math.abs(calib - 1) > 0.01 ? `, calibrated to invoice (x${calib.toFixed(2)})` : ''}`, released: Boolean(gone) });
     }
   }
 
@@ -85,7 +90,7 @@ export function simulate(model, scenario = {}) {
 
   const customers = model.customers.map((c) => {
     const d = custDelta.get(c.code) || { cost: 0, revenue: 0 };
-    const revenueINR = c.revenueINR + d.revenue;
+    const revenueINR = Math.max(0, c.revenueINR + d.revenue);
     const costINR = c.costINR + d.cost;
     const margin = marginOf(revenueINR, costINR);
     return {
