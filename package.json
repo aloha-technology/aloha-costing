@@ -1,0 +1,27 @@
+{
+  "name": "aloha-costing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "import": "node scripts/import.mjs",
+    "dev": "vite",
+    "dev:local": "vite --mode offline",
+    "build": "vite build && node scripts/check-dist.mjs",
+    "test": "node --test src/engine/engine.test.js src/engine/views.test.js src/actions/logic.test.js src/whatsapp/messages.test.js supabase/schema.test.js",
+    "publish": "node --env-file=.env scripts/publish.mjs",
+    "users": "node --env-file=.env scripts/users-sync.mjs",
+    "migrate": "node --env-file=.env scripts/migrate-local.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^5.4.21",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  }
+}

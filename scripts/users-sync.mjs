@@ -1,0 +1,65 @@
+// Gives people access: PMs (from the invoicing/costing data) plus the admins and
+// leadership listed in data/users.json. Shows the plan first; nothing changes without --apply.
+//   npm run users            # preview
+//   npm run users -- --apply # create logins + roles
+// Accounts are created already confirmed; people then sign in with the emailed link/code.
+import fs from 'node:fs';
+import path from 'node:path';
+import { adminClient, loadModel, root, must } from './supabase-admin.mjs';
+
+const apply = process.argv.includes('--apply');
+const usersFile = path.join(root, 'data', 'users.json');
+if (!fs.existsSync(usersFile)) {
+  fs.writeFileSync(usersFile, JSON.stringify({ admins: [{ email: 'matt@alohatechnology.com', name: 'Matt' }], leadership: [], excludePms: [] }, null, 2) + '\n');
+  console.log(`Created ${path.relative(root, usersFile)}. Add leadership emails there, then run again.\n`);
+}
+const cfg = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+const lower = (e) => String(e).trim().toLowerCase();
+// Entries can be "a@b.com" or { "email": "a@b.com", "name": "Asha" }.
+const entry = (x) => (typeof x === 'string' ? { email: lower(x), name: null } : { email: lower(x.email), name: x.name || null });
+const model = loadModel();
+
+const wanted = new Map();
+for (const x of cfg.admins || []) wanted.set(entry(x).email, { ...entry(x), role: 'admin', pm_id: null });
+for (const x of cfg.leadership || []) if (!wanted.has(entry(x).email)) wanted.set(entry(x).email, { ...entry(x), role: 'leadership', pm_id: null });
+const excluded = new Set((cfg.excludePms || []).map(lower));
+const noEmail = [];
+for (const pm of model.pms) {
+  if (!pm.email) {
+    noEmail.push(pm.name);
+    continue;
+  }
+  const email = lower(pm.email);
+  if (excluded.has(email) || wanted.has(email)) continue;
+  wanted.set(email, { email, role: 'pm', pm_id: pm.id, name: pm.name });
+}
+
+const supabase = adminClient();
+const existingRoles = new Map(must(await supabase.from('app_users').select('*'), 'Read app_users').map((u) => [u.email, u]));
+const authEmails = new Set();
+for (let page = 1; ; page++) {
+  const { users } = must(await supabase.auth.admin.listUsers({ page, perPage: 1000 }), 'List logins');
+  users.forEach((u) => u.email && authEmails.add(lower(u.email)));
+  if (users.length < 1000) break;
+}
+
+const plan = [...wanted.values()].map((u) => ({
+  ...u,
+  login: authEmails.has(u.email) ? 'exists' : 'create',
+  role_change: existingRoles.get(u.email)?.role === u.role ? '' : existingRoles.has(u.email) ? `${existingRoles.get(u.email).role} → ${u.role}` : 'new',
+}));
+console.table(plan.map(({ email, role, name, login, role_change }) => ({ email, role, name: name || '', login, role_change })));
+const stale = [...existingRoles.keys()].filter((e) => !wanted.has(e));
+if (stale.length) console.log(`In the database but no longer listed (left untouched): ${stale.join(', ')}`);
+if (noEmail.length) console.log(`PMs without an email (can't log in): ${noEmail.join(', ')}`);
+
+if (!apply) {
+  console.log('\nPreview only. Run "npm run users -- --apply" to make these changes.');
+  process.exit(0);
+}
+
+for (const u of plan.filter((p) => p.login === 'create')) {
+  must(await supabase.auth.admin.createUser({ email: u.email, email_confirm: true }), `Create login ${u.email}`);
+}
+must(await supabase.from('app_users').upsert(plan.map(({ email, role, pm_id, name }) => ({ email, role, pm_id, name })), { onConflict: 'email' }), 'Save roles');
+console.log(`\nDone: ${plan.filter((p) => p.login === 'create').length} logins created, ${plan.length} roles saved.`);
