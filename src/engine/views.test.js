@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { pmView } from './views.js';
 
 // Keys that carry an individual's salary or cost, or admin-only analysis.
-const FORBIDDEN = ['ctcMonthlyINR', 'detail', 'computedCostINR', 'reconciliation', 'costShare', 'dataQuality', 'totals', 'sources'];
+const FORBIDDEN = ['ctcMonthlyINR', 'detail', 'computedCostINR', 'reconciliation', 'costShare', 'dataQuality', 'totals', 'sources', 'employees'];
 
 function walk(v, visit, path = '') {
   if (Array.isArray(v)) v.forEach((x, i) => walk(x, visit, `${path}[${i}]`));

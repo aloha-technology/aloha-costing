@@ -61,6 +61,8 @@ Aloha builds IT solutions for small businesses.
 - Revenue basis: the invoiced amount (invoicing file) when the customer is on it, else the costing
   sheet. The costing sheet double-counts some invoices across customers; differences are flagged
   (INVOICE_MISMATCH) and listed in Data checks.
+- People tab (admin + leadership): every employee with allocations and CTC, plus a what-if
+  scenario (`src/engine/scenario.js`, stored in localStorage only). `model.employees` is admin-only.
 - COST_DRIVER deliberately includes PMs (a PM can be flagged as the biggest cost driver on their
   own account). Matt chose to keep this on 2026-09-28; do not exclude PMs.
 - Cost basis: margins use the costing sheet's Cost INR (official). Paysheet CTC x utilization

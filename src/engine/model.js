@@ -247,6 +247,45 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
     })
     .sort((a, b) => b.costINR - a.costINR);
 
+  // --- Employees (admin only): every person with all their allocations -----------------
+  const customerByCode = new Map(customers.map((c) => [c.code, c]));
+  const empMap = new Map();
+  for (const e of employeesRows) {
+    const id = empId(e.ID);
+    if (!id || empMap.has(id)) continue;
+    const salary = pay.get(id);
+    empMap.set(id, {
+      empId: id,
+      name: text(e.Name),
+      email: email(e.Email),
+      designation: role(e.Designation),
+      reportingManager: text(e['Reporting Manager']),
+      ctcMonthlyINR: salary ? salary.ctc : null,
+      allocations: [],
+      benchPct: 0,
+      benchProject: null,
+    });
+  }
+  for (const a of allocations) {
+    const emp = empMap.get(a.empId);
+    if (!emp) continue;
+    if (a.bench) {
+      emp.benchPct += a.utilPct;
+      emp.benchProject = a.project;
+      continue;
+    }
+    const c = customerByCode.get(a.code);
+    if (!c) continue; // project not on this month's costing sheet
+    const p = c.people.find((x) => x.empId === a.empId && x.project === a.project);
+    emp.allocations.push({ code: c.code, customer: c.name, project: a.project, utilPct: a.utilPct, billable: a.billable, ownerPm: p?.ownerPm || c.accountPm });
+  }
+  const employees = [...empMap.values()]
+    .map((e) => {
+      const allocatedPct = e.allocations.reduce((s, a) => s + a.utilPct, 0);
+      return { ...e, allocatedPct, idlePct: Math.max(0, 100 - allocatedPct - e.benchPct) };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   // --- PM roll-up -----------------------------------------------------------------------
   const pmList = [...pms.values()].map((pm) => {
     const mine = customers.filter((c) => c.pmIds.includes(pm.id));
@@ -310,6 +349,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
     customers: customers.sort((a, b) => b.gapINR - a.gapINR),
     pms: pmList.sort((a, b) => b.gapINR - a.gapINR),
     bench,
+    employees,
     dataQuality: {
       employeesWithoutSalary: [...noPay.values()],
       unknownProjects: [...unknownProjects],

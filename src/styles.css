@@ -179,3 +179,14 @@ button.linkish { border: 0; background: none; color: var(--accent); cursor: poin
 .login-card form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 .login-card label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .login-card input { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+
+/* People / what-if */
+.sim-bar { position: sticky; top: 0; z-index: 5; }
+.sim-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+.sim-head h2 { margin: 0; }
+.sim-head label { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.compact-kpis { margin-bottom: 6px; }
+.compact-kpis .kpi-value { font-size: 17px; }
+table.people td { vertical-align: top; }
+table.people tr.changed td { background: var(--warn-bg); }
+input.num { width: 64px; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); text-align: right; }

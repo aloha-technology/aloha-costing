@@ -7,6 +7,7 @@ import DataChecks from './views/DataChecks.jsx';
 import Actions from './views/Actions.jsx';
 import WhatsApp from './views/WhatsApp.jsx';
 import Login, { ChangePassword } from './views/Login.jsx';
+import People from './views/People.jsx';
 import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
 import { useViewer } from './data/useViewer.js';
@@ -17,6 +18,7 @@ const TABS = {
     ['overview', 'Overview'],
     ['customers', 'Customers'],
     ['pms', 'PMs'],
+    ['people', 'People'],
     ['actions', 'Actions'],
     ['whatsapp', 'WhatsApp'],
     ['bench', 'Bench'],
@@ -26,6 +28,7 @@ const TABS = {
     ['overview', 'Overview'],
     ['customers', 'Customers'],
     ['pms', 'PMs'],
+    ['people', 'People'],
     ['actions', 'Actions'],
     ['bench', 'Bench'],
     ['checks', 'Data checks'],
@@ -150,6 +153,7 @@ function Main({ viewer }) {
         {tab === 'mine' && <Pms {...ctx} focus={me.pmId} setFocus={() => {}} />}
         {tab === 'customers' && <Customers {...ctx} />}
         {tab === 'pms' && <Pms {...ctx} />}
+        {tab === 'people' && can.seeAll && <People {...ctx} />}
         {tab === 'actions' && <Actions {...ctx} />}
         {tab === 'whatsapp' && <WhatsApp {...ctx} />}
         {tab === 'bench' && <Bench {...ctx} />}
