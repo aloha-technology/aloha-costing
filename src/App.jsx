@@ -6,7 +6,7 @@ import Bench from './views/Bench.jsx';
 import DataChecks from './views/DataChecks.jsx';
 import Actions from './views/Actions.jsx';
 import WhatsApp from './views/WhatsApp.jsx';
-import Login from './views/Login.jsx';
+import Login, { ChangePassword } from './views/Login.jsx';
 import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
 import { useViewer } from './data/useViewer.js';
@@ -48,6 +48,7 @@ export default function App() {
   const viewer = useViewer();
   if (viewer.status === 'loading') return <div className="empty">Loading…</div>;
   if (viewer.status === 'signed-out') return <Login supabase={viewer.supabase} />;
+  if (viewer.status === 'change-password') return <ChangePassword supabase={viewer.supabase} me={viewer.me} onSignOut={viewer.signOut} required />;
   if (viewer.status === 'no-access')
     return (
       <Login
@@ -69,6 +70,7 @@ function Main({ viewer }) {
     return tabs.some(([id]) => id === t) ? t : tabs[0][0];
   });
   const [focus, setFocus] = useState(() => decodeURIComponent(location.hash.split('/')[1] || ''));
+  const [changingPw, setChangingPw] = useState(false);
 
   useEffect(() => {
     api.loadModel().then(setModel, (e) => setError(e.message));
@@ -103,6 +105,7 @@ function Main({ viewer }) {
     window.scrollTo(0, 0);
   };
 
+  if (changingPw) return <ChangePassword supabase={viewer.supabase} me={me} onDone={() => setChangingPw(false)} />;
   if (error) return <div className="empty">{error}</div>;
   if (!model) return <div className="empty">Loading…</div>;
 
@@ -133,6 +136,9 @@ function Main({ viewer }) {
             <span>
               {me.name} <span className="muted">· {me.role}</span>
             </span>
+            <button className="linkish" onClick={() => setChangingPw(true)}>
+              Change password
+            </button>
             <button className="linkish" onClick={viewer.signOut}>
               Sign out
             </button>

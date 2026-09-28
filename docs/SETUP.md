@@ -14,27 +14,14 @@ dashboards; Claude can do the rest once they're done.
 
 ## 2. Sign-in settings (you)
 
+The app uses **email + password**. No emails are ever sent, so no email sender (SMTP) is needed.
+
 In **Authentication**:
 
-1. **Sign In / Providers → Email:** keep Email on. Turn **off** "Allow new users to sign up".
+1. **Sign In / Providers:** turn **off** "Allow new users to sign up" and keep **Email** enabled.
    (The app is invite-only; `npm run users` creates the accounts.)
-2. **Emails → SMTP settings:** set up a real sender. Supabase's built-in sender only
-   delivers to your own Supabase team members and only a few emails an hour, so PMs
-   won't get their sign-in emails without this. Options:
-   - Aloha's own mail server (Google Workspace / Microsoft 365 SMTP), or
-   - a free tier of Resend or Brevo, sending from `no-reply@alohatechnology.com`.
-3. **Emails → Templates → Magic Link:** replace the body with the text below, so the email
-   has both a link and a 6-digit code (the code works if the email is opened on another device):
-
-   ```html
-   <h2>Sign in to Aloha Project Costing</h2>
-   <p><a href="{{ .ConfirmationURL }}">Click here to sign in</a></p>
-   <p>Or enter this code in the app: <strong>{{ .Token }}</strong></p>
-   <p>If you didn't ask for this, ignore this email.</p>
-   ```
-4. **URL Configuration:**
-   - **Site URL:** your GitHub Pages address, e.g. `https://<account>.github.io/aloha-costing/`
-   - **Redirect URLs:** add that same address and `http://localhost:5180/`
+2. **URL Configuration:** set **Site URL** to `https://aloha-technology.github.io/aloha-costing/`
+   and add it plus `http://localhost:5180/` under **Redirect URLs**.
 
 ## 3. Keys on your computer (you)
 
@@ -56,6 +43,13 @@ npm run users           # preview who gets access
 npm run users -- --apply
 npm run migrate -- --apply   # only if you created actions/contacts locally
 ```
+
+New logins get a random **starting password**, saved to `data/new-passwords.txt` (git-ignored,
+never shown on screen). Send each person their own line on WhatsApp, then delete the file. The
+first time they sign in, the app makes them choose their own password.
+
+Forgot password: `npm run reset-password -- someone@alohatechnology.com` (the new starting
+password goes to the same file).
 
 Leadership emails go in `data/users.json` under `"leadership"`, e.g.
 `{ "email": "ceo@alohatechnology.com", "name": "Asha" }`. Then run `npm run users -- --apply` again.

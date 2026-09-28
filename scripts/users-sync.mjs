@@ -2,10 +2,11 @@
 // leadership listed in data/users.json. Shows the plan first; nothing changes without --apply.
 //   npm run users            # preview
 //   npm run users -- --apply # create logins + roles
-// Accounts are created already confirmed; people then sign in with the emailed link/code.
+// New logins get a random starting password, saved to data/new-passwords.txt (never printed).
+// People must choose their own password the first time they sign in.
 import fs from 'node:fs';
 import path from 'node:path';
-import { adminClient, loadModel, root, must } from './supabase-admin.mjs';
+import { adminClient, loadModel, root, must, tempPassword, savePasswords } from './supabase-admin.mjs';
 
 const apply = process.argv.includes('--apply');
 const usersFile = path.join(root, 'data', 'users.json');
@@ -58,8 +59,15 @@ if (!apply) {
   process.exit(0);
 }
 
+const issued = [];
 for (const u of plan.filter((p) => p.login === 'create')) {
-  must(await supabase.auth.admin.createUser({ email: u.email, email_confirm: true }), `Create login ${u.email}`);
+  const password = tempPassword();
+  must(
+    await supabase.auth.admin.createUser({ email: u.email, password, email_confirm: true, user_metadata: { must_change_password: true } }),
+    `Create login ${u.email}`
+  );
+  issued.push({ email: u.email, name: u.name, password });
 }
 must(await supabase.from('app_users').upsert(plan.map(({ email, role, pm_id, name }) => ({ email, role, pm_id, name })), { onConflict: 'email' }), 'Save roles');
-console.log(`\nDone: ${plan.filter((p) => p.login === 'create').length} logins created, ${plan.length} roles saved.`);
+console.log(`\nDone: ${issued.length} logins created, ${plan.length} roles saved.`);
+if (issued.length) console.log(`Starting passwords saved to ${savePasswords(issued)} (not shown here).`);

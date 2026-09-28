@@ -39,3 +39,20 @@ export const must = ({ data, error }, what) => {
   if (error) throw new Error(`${what}: ${error.message}`);
   return data;
 };
+
+// Starting passwords: random, easy to read out (no 0/O, 1/l/I), e.g. "k7Qm-3xPz-9Rtb".
+const ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export function tempPassword() {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  const s = [...bytes].map((b) => ALPHABET[b % ALPHABET.length]).join('');
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
+}
+
+// Passwords go to a git-ignored file only, never to the terminal.
+export function savePasswords(rows) {
+  const file = path.join(root, 'data', 'new-passwords.txt');
+  const stamp = new Date().toLocaleString();
+  const lines = rows.map((r) => `${r.email}\t${r.name || ''}\t${r.password}`);
+  fs.appendFileSync(file, `\n# ${stamp}: send each person their line on WhatsApp, then delete this file\n${lines.join('\n')}\n`);
+  return path.relative(root, file);
+}

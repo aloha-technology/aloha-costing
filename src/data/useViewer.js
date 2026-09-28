@@ -13,7 +13,7 @@ export function permissions(role) {
 }
 
 // Resolves who is looking and which backend to use.
-// status: 'loading' | 'signed-out' | 'no-access' | 'ready'
+// status: 'loading' | 'signed-out' | 'no-access' | 'change-password' | 'ready'
 export function useViewer() {
   // Local mode can preview other roles with ?as=leadership or ?as=pm:<pm id>.
   const as = new URLSearchParams(location.search).get('as') || '';
@@ -30,14 +30,16 @@ export function useViewer() {
         if (!session) return setState({ status: 'signed-out' });
         try {
           const me = await mod.lookupMe(session);
-          setState(me ? { status: 'ready', me } : { status: 'no-access', email: session.user.email });
+          if (!me) return setState({ status: 'no-access', email: session.user.email });
+          // Starting passwords must be replaced before the app opens.
+          setState({ status: session.user.user_metadata?.must_change_password ? 'change-password' : 'ready', me });
         } catch (e) {
           setState({ status: 'error', error: e.message });
         }
       };
       mod.supabase.auth.getSession().then(({ data }) => resolve(data.session));
       const { data } = mod.supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') resolve(session);
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') resolve(session);
       });
       unsub = () => data.subscription.unsubscribe();
     });

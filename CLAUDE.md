@@ -51,6 +51,9 @@ Aloha builds IT solutions for small businesses.
 - Publishing: `npm run publish` uploads an `admin` snapshot + one `pm:<id>` snapshot per PM built
   by `pmView()` (`src/engine/views.js`, a whitelist). Salary data must never reach `dist/`:
   `scripts/check-dist.mjs` runs after every build and fails on data files or real names.
+- Sign-in: email + password only (no SMTP / no emails). `npm run users -- --apply` creates logins
+  with random starting passwords written to `data/new-passwords.txt` (never printed); Matt sends
+  them on WhatsApp; the app forces a change on first sign-in. `npm run reset-password -- <email>`.
 - Roles: admin (Matt, all writes), leadership (read all), pm (own data; notes / start / ask to
   close via `pm_action_update()`; only admin confirms closure).
 - Commands: `npm run import` (reads `data/inbox/`, writes `data/model.json`, git-ignored and
