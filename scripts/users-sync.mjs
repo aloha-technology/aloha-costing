@@ -2,6 +2,7 @@
 // leadership listed in data/users.json. Shows the plan first; nothing changes without --apply.
 //   npm run users            # preview
 //   npm run users -- --apply # create logins + roles
+//   npm run users -- --only=a@x.com --apply   # just these people
 // New logins get a random starting password, saved to data/new-passwords.txt (never printed).
 // People must choose their own password the first time they sign in.
 import fs from 'node:fs';
@@ -43,6 +44,11 @@ for (let page = 1; ; page++) {
   users.forEach((u) => u.email && authEmails.add(lower(u.email)));
   if (users.length < 1000) break;
 }
+
+// --only a@x.com,b@y.com limits this run to those people (e.g. test with your own login first).
+const onlyArg = process.argv.find((a) => a.startsWith('--only='));
+const only = onlyArg ? new Set(onlyArg.slice(7).split(',').map(lower)) : null;
+if (only) for (const e of [...wanted.keys()]) if (!only.has(e)) wanted.delete(e);
 
 const plan = [...wanted.values()].map((u) => ({
   ...u,
