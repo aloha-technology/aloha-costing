@@ -3,6 +3,7 @@
 // scenario = {
 //   alloc:    { [allocKey]: { utilPct?, billable? } }   // changed allocations
 //   released: { [empId]: true }                          // people leaving the company
+//   added:    [{ id, empId, code, utilPct, billable }]   // free time assigned to a customer
 // }
 //
 // Rules (shown to the user on screen):
@@ -65,6 +66,25 @@ export function simulate(model, scenario = {}) {
       personDelta.set(p.empId, (personDelta.get(p.empId) || 0) + (newUtil - p.utilPct));
       rows.push({ key, code: c.code, customer: c.name, empId: p.empId, name: p.name, designation: p.designation, ownerPm: p.ownerPm || c.accountPm, isPm: Boolean(p.isPm), from: { utilPct: p.utilPct, billable: p.billable }, to: { utilPct: newUtil, billable: newBillable }, dCostINR: dCost, dRevenueINR: dRev, rateBasis: `${basis}${Math.abs(calib - 1) > 0.01 ? `, calibrated to invoice (x${calib.toFixed(2)})` : ''}`, released: Boolean(gone) });
     }
+  }
+
+  // New assignments: put someone's free (bench / unallocated) time onto a customer.
+  const custByCode = new Map(model.customers.map((c) => [c.code, c]));
+  for (const add of scenario.added || []) {
+    const c = custByCode.get(add.code);
+    const e = empById.get(add.empId);
+    if (!c || !e || released[add.empId] || !(add.utilPct > 0)) continue;
+    const implied = c.people.reduce((a, p) => a + (p.billable ? (seatRate(c, p.designation, p.project).rateUSD * p.utilPct) / 100 : 0), 0);
+    const calib = implied > 0 ? c.revenueUSD / implied : 1;
+    const { rateUSD, basis } = seatRate(c, e.designation, null);
+    const dCost = ((e.ctcMonthlyINR || 0) * add.utilPct) / 100;
+    const dRev = add.billable ? ((rateUSD * calib * add.utilPct) / 100) * (c.fx || model.fx || 0) : 0;
+    const d = custDelta.get(c.code) || { cost: 0, revenue: 0 };
+    d.cost += dCost;
+    d.revenue += dRev;
+    custDelta.set(c.code, d);
+    personDelta.set(e.empId, (personDelta.get(e.empId) || 0) + add.utilPct);
+    rows.push({ key: `add|${add.id}`, added: true, code: c.code, customer: c.name, empId: e.empId, name: e.name, designation: e.designation, ownerPm: c.accountPm || c.pmIds?.[0] || null, isPm: false, from: { utilPct: 0, billable: false }, to: { utilPct: add.utilPct, billable: Boolean(add.billable) }, dCostINR: dCost, dRevenueINR: dRev, rateBasis: `${basis}${Math.abs(calib - 1) > 0.01 ? `, calibrated to invoice (x${calib.toFixed(2)})` : ''}`, released: false });
   }
 
   // Bench: freed time lands on bench unless released; released people take their bench cost with them.

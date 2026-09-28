@@ -10,6 +10,8 @@ function describe(r) {
   const { from, to } = r;
   const time = from.utilPct !== to.utilPct;
   const bill = from.billable !== to.billable;
+  if (from.utilPct === 0 && to.utilPct > 0)
+    return { title: `Assign ${who(r)} to ${r.customer} at ${to.utilPct}%${to.billable ? ', billable' : ''}`, ask: `Assign ${r.name} to ${r.customer} at ${to.utilPct}%${to.billable ? ' (billable)' : ''}` };
   if (to.utilPct === 0) return { title: `Take ${who(r)} off ${r.customer} (${from.utilPct}% → 0%)`, ask: `Take ${r.name} off ${r.customer}` };
   const parts = [];
   if (bill) parts.push(to.billable ? 'bill' : 'stop billing');

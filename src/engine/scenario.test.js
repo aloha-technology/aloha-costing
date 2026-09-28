@@ -93,3 +93,14 @@ test('removing all billable time takes revenue to zero, never below', () => {
   const s = simulate(model, { alloc: { [key('10')]: { utilPct: 0 } } });
   assert.equal(s.customers[0].after.revenueINR, 0);
 });
+
+test('assigning bench time to a customer reuses it: bench cost falls, billing rises', () => {
+  // Dev B has 50% bench time; assign it to Acme as billable.
+  const s = simulate(model, { added: [{ id: 'a1', empId: '11', code: 'C1', utilPct: 50, billable: true }] });
+  const c = s.customers[0].after;
+  assert.equal(c.costINR, 50000); // + 20,000 x 50%
+  assert.equal(c.revenueINR, 150000); // + $500 x 2 (calibrated) x 50% x 100
+  assert.equal(s.after.benchCostINR, 0); // their bench time is now used
+  assert.equal(s.netMonthlyINR, 50000); // bench saved 10,000 - cost 10,000 + billing 50,000
+  assert.equal(s.rows[0].added, true);
+});
