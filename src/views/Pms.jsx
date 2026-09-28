@@ -18,6 +18,8 @@ export default function Pms({ model, pmsById, focus, setFocus, go, store, can, m
             { key: 'email', label: 'Email', render: (p) => p.email || '—' },
             { key: 'customers', label: 'Customers', align: 'right' },
             { key: 'belowTarget', label: 'Below target', align: 'right' },
+            { key: 'estRevenueINR', label: 'Est. revenue ₹', align: 'right', render: (p) => (p.customers ? inr(p.estRevenueINR) : '—') },
+            { key: 'estCostINR', label: 'Est. cost ₹', align: 'right', render: (p) => (p.customers ? inr(p.estCostINR) : '—') },
             { key: 'estMargin', label: 'Est. margin', align: 'right', render: (p) => <Margin value={p.estMargin} target={target} />, sort: (p) => p.estMargin ?? -1 },
             { key: 'gapINR', label: 'Share of gap', align: 'right', render: (p) => inr(p.gapINR) },
             { key: 'benchCostINR', label: 'Bench', align: 'right', render: (p) => (p.benchPeople ? `${p.benchPeople} · ${inr(p.benchCostINR)}` : '—') },
@@ -117,6 +119,7 @@ export default function Pms({ model, pmsById, focus, setFocus, go, store, can, m
         <Table
           columns={[
             { key: 'name', label: 'Customer', render: (c) => <strong>{c.name}</strong> },
+            { key: 'revenueINR', label: 'Revenue ₹', align: 'right', render: (c) => inr(c.revenueINR) },
             { key: 'margin', label: 'Margin', align: 'right', render: (c) => <Margin value={c.margin} target={target} />, sort: (c) => c.margin ?? -1 },
             { key: 'gapINR', label: 'Gap / month', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
             can.seeAll
