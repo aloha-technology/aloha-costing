@@ -61,6 +61,8 @@ Aloha builds IT solutions for small businesses.
 - Revenue basis: the invoiced amount (invoicing file) when the customer is on it, else the costing
   sheet. The costing sheet double-counts some invoices across customers; differences are flagged
   (INVOICE_MISMATCH) and listed in Data checks.
+- COST_DRIVER deliberately includes PMs (a PM can be flagged as the biggest cost driver on their
+  own account). Matt chose to keep this on 2026-09-28; do not exclude PMs.
 - Cost basis: margins use the costing sheet's Cost INR (official). Paysheet CTC x utilization
   is only used to explain cost drivers; it runs ~9% higher (July paysheet vs Sept costing).
 - Source data: invoices are issued in **Zoho** and **QuickBooks**. Matt exports Excel dumps
