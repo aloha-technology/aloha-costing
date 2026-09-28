@@ -127,16 +127,19 @@ export function findingsForCustomer(c, { target }) {
   }
 
   if (c.invoicing) {
-    const diff = c.invoicing.amountUSD - c.revenueUSD;
-    if (Math.abs(diff) > Math.max(1, 0.01 * c.revenueUSD)) {
+    // Revenue already uses the invoiced amount; flag when the costing sheet says otherwise.
+    const diff = c.costingRevenueUSD - c.invoicing.amountUSD;
+    if (Math.abs(diff) > Math.max(1, 0.01 * c.invoicing.amountUSD)) {
       add({
         kind: 'INVOICE_MISMATCH',
         severity: 'medium',
-        title: `Invoiced ${usd(c.invoicing.amountUSD)} vs ${usd(c.revenueUSD)} in costing`,
-        detail: `Invoicing and the costing sheet differ by ${usd(diff)}.`,
-        pmText: `Invoiced amount for ${c.name} doesn't match the costing sheet; accounts will confirm.`,
-        action: 'Reconcile with accounts; fix whichever side is wrong.',
-        ask: 'Confirm the invoiced amount with accounts',
+        title: `Costing sheet shows ${usd(c.costingRevenueUSD)}, invoiced ${usd(c.invoicing.amountUSD)}`,
+        detail:
+          `Margins here use the invoiced ${usd(c.invoicing.amountUSD)}. The costing sheet is ${usd(Math.abs(diff))} ${diff > 0 ? 'higher' : 'lower'}` +
+          `${diff > 0 ? ' (possibly an invoice counted on more than one customer)' : ''}; get it corrected in the portal.`,
+        pmText: `The costing sheet revenue for ${c.name} doesn't match what was invoiced this month; margins here use the invoiced amount.`,
+        action: 'Reconcile with accounts and get the costing sheet corrected.',
+        ask: 'Confirm this month’s billing for this customer with accounts',
         ownerPmIds: c.accountPm ? [c.accountPm] : c.pmIds,
       });
     }

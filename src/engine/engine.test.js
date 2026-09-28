@@ -75,3 +75,24 @@ test('PM directory comes from invoicing, co-PMs from the costing sheet', () => {
   assert.equal(byId['priyan@x.com'].source, 'invoicing');
   assert.equal(byId['karanm@x.com'].source, 'costing-sheet');
 });
+
+test('revenue uses the invoiced amount and flags a costing-sheet difference', () => {
+  const inv = { ...raw.invoicing, rows: [{ ...raw.invoicing.rows[0], 'Sep-26 Amount': 800 }] };
+  const c = buildModel({ ...raw, invoicing: inv }).customers[0];
+  assert.equal(c.revenueSource, 'invoicing');
+  assert.equal(c.revenueUSD, 800);
+  assert.equal(c.revenueINR, 80000); // costing sheet rate: 1,00,000 / 1,000
+  assert.equal(c.costingRevenueUSD, 1000);
+  assert.equal(c.revenueDiffUSD, 200);
+  assert.equal(c.margin, 0.5);
+  const f = c.findings.find((x) => x.kind === 'INVOICE_MISMATCH');
+  assert.match(f.title, /Costing sheet shows \$1,000, invoiced \$800/);
+  assert.doesNotMatch(f.pmText, /₹/);
+});
+
+test('without an invoicing line, revenue falls back to the costing sheet', () => {
+  const c = buildModel({ ...raw, invoicing: { ...raw.invoicing, rows: [] } }).customers[0];
+  assert.equal(c.revenueSource, 'costing');
+  assert.equal(c.revenueUSD, 1000);
+  assert.ok(c.findings.some((x) => x.kind === 'NOT_INVOICED'));
+});

@@ -125,14 +125,25 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
   }
 
   // --- Customers ------------------------------------------------------------------------
+  // Revenue = what was invoiced this month when the customer is on the invoicing sheet;
+  // the costing sheet's revenue is kept for comparison (it double-counts some invoices).
+  const fxRows0 = raw.summary.rows.filter((s) => num(s['Revenue USD']) > 0);
+  const globalFx = fxRows0.length
+    ? fxRows0.reduce((a, s) => a + num(s['Revenue INR']), 0) / fxRows0.reduce((a, s) => a + num(s['Revenue USD']), 0)
+    : null;
+
   const customers = raw.summary.rows
     .filter((s) => text(s['Project Name']))
     .map((s) => {
       const c = code(s['Billing Code']);
-      const revenueUSD = num(s['Revenue USD']);
-      const revenueINR = num(s['Revenue INR']);
+      const costingRevenueUSD = num(s['Revenue USD']);
+      const costingRevenueINR = num(s['Revenue INR']);
       const costINR = num(s['Cost INR']);
       const inv = invoicing.get(c) || null;
+      const fx = costingRevenueUSD > 0 ? costingRevenueINR / costingRevenueUSD : globalFx;
+      const revenueSource = inv ? 'invoicing' : 'costing';
+      const revenueUSD = inv ? inv.amountUSD : costingRevenueUSD;
+      const revenueINR = inv ? inv.amountUSD * (fx || 0) : costingRevenueINR;
       const pmIds = text(s['Project Manager'])
         .split(',')
         .map(text)
@@ -172,7 +183,6 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
           costShare: computedCostINR > 0 ? x.costINR / computedCostINR : 0,
         }));
 
-      const fx = revenueUSD > 0 ? revenueINR / revenueUSD : null;
       const customer = {
         code: c,
         name: text(s['Project Name']),
@@ -180,6 +190,9 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         accountPm,
         revenueUSD,
         revenueINR,
+        revenueSource,
+        costingRevenueUSD,
+        costingRevenueINR,
         costINR,
         fx,
         margin: revenueINR > 0 ? (revenueINR - costINR) / revenueINR : null,
@@ -208,6 +221,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
           .sort((a, b) => b.costINR - a.costINR),
       };
       customer.gapUSD = fx ? customer.gapINR / fx : null;
+      customer.revenueDiffUSD = inv ? costingRevenueUSD - inv.amountUSD : 0;
       customer.findings = findingsForCustomer(customer, { target });
       return customer;
     });
@@ -282,6 +296,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       customers: customers.length,
       revenueINR,
       revenueUSD: sum(customers, 'revenueUSD'),
+      costingRevenueUSD: sum(customers, 'costingRevenueUSD'),
+      revenueMismatches: customers.filter((c) => Math.abs(c.revenueDiffUSD) > Math.max(1, 0.01 * c.revenueUSD)).length,
       costINR,
       margin: revenueINR > 0 ? (revenueINR - costINR) / revenueINR : null,
       belowTarget: customers.filter((c) => c.belowTarget).length,

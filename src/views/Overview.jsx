@@ -15,7 +15,11 @@ export default function Overview({ model, pmsById, go, store }) {
   return (
     <>
       <section className="kpis">
-        <Kpi label="Revenue" value={usd(t.revenueUSD)} note={inr(t.revenueINR)} />
+        <Kpi
+          label="Revenue (invoiced)"
+          value={usd(t.revenueUSD)}
+          note={`${inr(t.revenueINR)}${t.costingRevenueUSD && Math.abs(t.costingRevenueUSD - t.revenueUSD) > 1 ? ` · costing sheet ${usd(t.costingRevenueUSD)}` : ''}`}
+        />
         <Kpi label="Cost" value={inr(t.costINR)} note={`${pct(t.costINR / t.revenueINR)} of revenue`} />
         <Kpi
           label="Margin"

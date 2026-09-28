@@ -100,7 +100,12 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
       </div>
 
       <section className="kpis">
-        <Kpi label="Revenue" value={usd(c.revenueUSD)} note={inr(c.revenueINR)} />
+        <Kpi
+          label={c.revenueSource === 'invoicing' ? 'Revenue (invoiced)' : 'Revenue (costing sheet)'}
+          value={usd(c.revenueUSD)}
+          note={`${inr(c.revenueINR)}${Math.abs(c.revenueDiffUSD || 0) > 1 ? ` · costing sheet ${usd(c.costingRevenueUSD)}` : ''}`}
+          tone={Math.abs(c.revenueDiffUSD || 0) > 1 ? 'warn' : ''}
+        />
         <Kpi label="Cost" value={inr(c.costINR)} note={can.seeAll ? `paysheet estimate ${inr(c.computedCostINR)}` : `${pct(c.costINR / c.revenueINR)} of revenue`} />
         <Kpi label="Margin" value={c.margin == null ? 'no revenue' : pct(c.margin)} note={`target ${pct(target, 0)}`} tone={c.belowTarget ? 'bad' : 'good'} />
         <Kpi label="Gap / month" value={c.gapINR > 0 ? inr(c.gapINR) : '—'} note={c.gapUSD ? usd(c.gapUSD) : ''} tone={c.gapINR > 0 ? 'bad' : ''} />

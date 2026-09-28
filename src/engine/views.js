@@ -8,7 +8,7 @@
 
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
 
-const CUSTOMER_KEYS = ['code', 'name', 'pmIds', 'accountPm', 'revenueUSD', 'revenueINR', 'costINR', 'fx', 'margin', 'belowTarget', 'gapINR', 'gapUSD', 'billable', 'allocated'];
+const CUSTOMER_KEYS = ['code', 'name', 'pmIds', 'accountPm', 'revenueUSD', 'revenueINR', 'revenueSource', 'costingRevenueUSD', 'revenueDiffUSD', 'costINR', 'fx', 'margin', 'belowTarget', 'gapINR', 'gapUSD', 'billable', 'allocated'];
 const PERSON_KEYS = ['empId', 'name', 'designation', 'project', 'ownerPm', 'utilPct', 'billable', 'isPm'];
 const SEAT_KEYS = ['role', 'count', 'rateUSD', 'subproject'];
 const FINDING_KEYS = ['id', 'kind', 'severity', 'title', 'pmText', 'ask', 'action', 'ownerPmIds'];

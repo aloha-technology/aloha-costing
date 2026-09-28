@@ -5,6 +5,13 @@ import { Table } from './ui.jsx';
 export default function DataChecks({ model, go }) {
   const dq = model.dataQuality;
   const t = model.totals;
+  const revDiffs = model.customers.filter((c) => Math.abs(c.revenueDiffUSD || 0) > Math.max(1, 0.01 * c.revenueUSD));
+  // Customers whose costing-sheet excess matches another's: a sign of one invoice counted twice.
+  const sameAs = (c) =>
+    revDiffs
+      .filter((o) => o.code !== c.code && c.revenueDiffUSD > 0 && Math.abs(o.revenueDiffUSD - c.revenueDiffUSD) < 1)
+      .map((o) => o.name)
+      .join(', ');
   const offRecon = model.customers.filter((c) => c.reconciliation != null && Math.abs(c.reconciliation - 1) > 0.15);
 
   return (
@@ -18,6 +25,28 @@ export default function DataChecks({ model, go }) {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="card">
+        <h2>Revenue: costing sheet vs invoiced</h2>
+        <p>
+          Revenue in this app is the <strong>invoiced</strong> amount: <strong>{usd(t.revenueUSD)}</strong>. The costing sheet shows{' '}
+          <strong>{usd(t.costingRevenueUSD)}</strong> ({usd(t.costingRevenueUSD - t.revenueUSD)} more). {revDiffs.length} customers differ; the same
+          amount appearing on several customers usually means one invoice was counted more than once.
+        </p>
+        <Table
+          columns={[
+            { key: 'name', label: 'Customer', render: (c) => <strong>{c.name}</strong> },
+            { key: 'costingRevenueUSD', label: 'Costing sheet', align: 'right', render: (c) => usd(c.costingRevenueUSD, { compact: false }) },
+            { key: 'revenueUSD', label: 'Invoiced', align: 'right', render: (c) => usd(c.revenueUSD, { compact: false }) },
+            { key: 'revenueDiffUSD', label: 'Difference', align: 'right', render: (c) => usd(c.revenueDiffUSD, { compact: false }), sort: (c) => Math.abs(c.revenueDiffUSD) },
+            { key: 'same', label: 'Same amount also on', render: (c) => sameAs(c) || '—' },
+          ]}
+          rows={revDiffs}
+          initialSort={{ key: 'revenueDiffUSD', dir: 'desc' }}
+          onRowClick={(c) => go('customers', c.code)}
+          rowKey={(c) => c.code}
+        />
       </section>
 
       <section className="card">
