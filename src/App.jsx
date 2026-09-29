@@ -9,6 +9,7 @@ import WhatsApp from './views/WhatsApp.jsx';
 import Login, { ChangePassword } from './views/Login.jsx';
 import People from './views/People.jsx';
 import Play from './views/Play.jsx';
+import Allocations from './views/Allocations.jsx';
 import { Icon, Glossary, BenchBanner } from './views/shell.jsx';
 import { useMaster, Settings } from './views/Master.jsx';
 import { useActions } from './actions/useActions.js';
@@ -32,6 +33,7 @@ const NAV = {
     [
       'Improve',
       [
+        ['allocations', 'Allocations', 'swap', 'Add or remove people and set %, with live COST'],
         ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
         ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
         ['whatsapp', 'WhatsApp', 'chat', 'Weekly digests and alerts for PMs'],
@@ -59,6 +61,7 @@ const NAV = {
     [
       'Improve',
       [
+        ['allocations', 'Allocations', 'swap', 'Who is on which customer, with live COST'],
         ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
         ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
       ],
@@ -76,6 +79,7 @@ const NAV = {
       'My work',
       [
         ['mine', 'My team', 'grid', 'Your customers, COST and bench'],
+        ['allocations', 'Allocations & play', 'swap', 'Add or remove people and set %: try first, then save'],
         ['customers', 'Customers', 'building', 'Your customers'],
         ['bench', 'Bench', 'pause', 'Your bench'],
         ['actions', 'Actions', 'check', 'Actions assigned to you'],
@@ -226,6 +230,7 @@ function Main({ viewer }) {
           {tab === 'pms' && <Pms {...ctx} />}
           {tab === 'people' && can.seeAll && <People {...ctx} />}
           {tab === 'play' && can.seeAll && <Play {...ctx} />}
+          {tab === 'allocations' && <Allocations {...ctx} />}
           {tab === 'actions' && <Actions {...ctx} />}
           {tab === 'whatsapp' && <WhatsApp {...ctx} />}
           {tab === 'bench' && <Bench {...ctx} />}

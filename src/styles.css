@@ -325,3 +325,20 @@ input.text-in { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px so
 label.upload-btn { cursor: pointer; }
 select.cat-select { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
 .validated-stamp { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }
+
+/* Allocations */
+.alloc-grid { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .alloc-grid { grid-template-columns: 1fr; } }
+.cust-pick { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow-y: auto; }
+.cust-pick li { display: flex; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 7px; cursor: pointer; font-size: 13px; }
+.cust-pick li:hover { background: var(--accent-soft); }
+.cust-pick li.on { background: var(--accent-soft); font-weight: 600; }
+.cust-pick .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cust-pick .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+tr.removed td { background: var(--bad-bg); text-decoration: line-through; color: var(--muted); }
+tr.removed td:last-child { text-decoration: none; }
+tr.added td { background: var(--good-bg); }
+tr.changed td { background: var(--warn-bg); }
+.people-pick { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.people-pick li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--line-2); }
+.people-pick li:hover, .people-pick li.on { background: var(--accent-soft); }

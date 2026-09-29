@@ -10,6 +10,7 @@ import path from 'node:path';
 import { newAction, applyChange, isClosed } from '../src/actions/logic.js';
 import { readInbox } from '../src/engine/read.js';
 import { periodKey } from '../src/engine/kinds.js';
+import { applyChanges } from '../src/engine/live.js';
 
 // Replace a file atomically; on Windows a reader can briefly lock the target (EPERM), so
 // retry a few times and finally fall back to writing it in place.
@@ -45,6 +46,7 @@ export function actionsApi({ dir }) {
   const contacts = store('pm-contacts.json', () => ({}));
   const comms = store('comms.json', () => []);
   const master = store('master.json', () => ({ profiles: {}, rates: {}, settings: null }));
+  const live = store('live.json', () => ({ source: 'export', since: null, people: [], salaries: {}, allocations: [], revenue: [], profiles: {}, target: 0.7, history: [] }));
   const imports = store('imports.json', () => ({ period: null, files: {}, validations: {}, customerValidations: {}, categories: {}, revenueOverrides: {}, salaryOverrides: {} }));
 
   const readBody = (req) =>
@@ -182,6 +184,42 @@ export function actionsApi({ dir }) {
             fs.writeFileSync(mfile + '.tmp', JSON.stringify(model));
             replaceFile(mfile + '.tmp', mfile);
             return send(res, 200, { ok: true });
+          }
+          send(res, 405, { error: 'Method not allowed' });
+        })
+      );
+
+      // Live allocations (local mode mirrors the Supabase functions with src/engine/live.js).
+      server.middlewares.use(
+        '/api/live',
+        route(async (req, res, id) => {
+          const st = live.load();
+          if (req.method === 'GET' && !id) return send(res, 200, st);
+          if (req.method === 'POST' && id === 'apply') {
+            const { changes, note, viewer } = await readBody(req);
+            const who = viewer?.role === 'pm' ? viewer.name || viewer.pmId : 'Matt';
+            const out = applyChanges(st, viewer || { role: 'admin' }, changes || [], note || '', who);
+            live.save({ ...out.state, history: [...st.history, ...out.history] });
+            return send(res, 200, { n: out.history.length });
+          }
+          if (req.method === 'POST' && id === 'sync') {
+            const p = await readBody(req);
+            const next = { ...st };
+            const people = new Map(st.people.map((x) => [x.emp_id, x]));
+            for (const x of p.people || []) people.set(x.emp_id, x);
+            next.people = [...people.values()];
+            for (const x of p.salaries || []) next.salaries[x.emp_id] = x.ctc_monthly_inr;
+            if (p.revenue) next.revenue = p.revenue;
+            if (p.profiles) next.profiles = p.profiles;
+            if (p.settings) next.target = p.settings.target ?? next.target;
+            if (p.allocations) {
+              next.allocations = p.allocations;
+              next.source = 'app';
+              next.since = new Date().toISOString();
+              next.history = [...st.history, { at: next.since, by: 'Matt', action: 'seed', note: p.note || 'Allocations loaded', after: { allocations: p.allocations.length } }];
+            }
+            live.save(next);
+            return send(res, 200, { people: (p.people || []).length, allocations: p.allocations ? p.allocations.length : null });
           }
           send(res, 405, { error: 'Method not allowed' });
         })

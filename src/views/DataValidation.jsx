@@ -5,6 +5,7 @@ import DataChecks from './DataChecks.jsx';
 import { KIND_LABEL, REQUIRED_KINDS, periodKey } from '../engine/kinds.js';
 import { buildModel, CATEGORIES } from '../engine/model.js';
 import { validateInputs, summarizeChecks } from '../engine/validate.js';
+import { liveToRaw, diffAllocations, modelToLive } from '../engine/liveSync.js';
 
 const ORDER = ['summary', 'invoicing', 'paysheet', 'employees', 'projects', 'bench'];
 const when = (iso) => (iso ? new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
@@ -15,7 +16,9 @@ export function useImports(api, enabled) {
   const [error, setError] = useState(null);
   const reload = useCallback(() => {
     if (!enabled || !api?.getImports) return Promise.resolve();
-    return api.getImports().then((x) => setSt(x), (e) => setError(e.message));
+    // Once allocations are managed in the app, builds use them (admin only needs this).
+    const liveP = api.getLive ? api.getLive().catch(() => null) : Promise.resolve(null);
+    return Promise.all([api.getImports(), liveP]).then(([x, live]) => setSt(x && { ...x, live }), (e) => setError(e.message));
   }, [api, enabled]);
   useEffect(() => {
     reload();
@@ -73,8 +76,24 @@ export function useBuild(st) {
     if (!st?.files || !REQUIRED_KINDS.every((k) => st.files[k])) return { model: null, checks: validateInputs(st?.files || {}, null), error: null };
     try {
       const categories = Object.fromEntries(Object.entries(st.categories || {}).map(([id, c]) => [id, c.category]));
-      const model = buildModel(st.files, { categories, revenueOverrides: st.revenueOverrides, salaryOverrides: st.salaryOverrides });
-      return { model, checks: validateInputs(st.files, model), error: null };
+      const opts = { categories, revenueOverrides: st.revenueOverrides, salaryOverrides: st.salaryOverrides };
+      const exportModel = buildModel(st.files, opts);
+      if (st.live?.source !== 'app') return { model: exportModel, checks: validateInputs(st.files, exportModel), error: null, source: 'export' };
+      // App is the source: rebuild employees + bench from the app's allocations; the portal
+      // export's allocations become a cross-check.
+      const model = buildModel(liveToRaw(st.live, st.files, exportModel), opts);
+      const checks = validateInputs(st.files, model);
+      const diff = diffAllocations(exportModel, st.live.allocations, st.live.people);
+      if (checks.employees) {
+        checks.employees.facts = [`Allocations come from the app (managed since ${new Date(st.live.since).toLocaleDateString()})`, ...checks.employees.facts];
+        checks.employees.checks = [
+          diff.length
+            ? { level: 'warning', text: `Portal export and app allocations differ in ${diff.length} places (the app is used)`, items: diff.map((d) => `${d.customer} · ${d.name}: portal ${Math.round(d.portal)}% → app ${Math.round(d.app)}%${d.kind === 'different' && d.portalBillable !== d.appBillable ? ` (billable ${d.portalBillable ? 'yes' : 'no'} → ${d.appBillable ? 'yes' : 'no'})` : ''}`) }
+            : { level: 'info', text: 'Portal export matches the app allocations.' },
+          ...checks.employees.checks,
+        ];
+      }
+      return { model, checks, error: null, source: 'app', diff };
     } catch (e) {
       return { model: null, checks: {}, error: e.message };
     }
@@ -140,7 +159,13 @@ function ImportValidate({ model: live, imports, built, can, api, reloadModel }) 
     setPubMsg(null);
     try {
       await api.publishModel({ ...built.model, generatedAt: new Date().toISOString() }, st.period);
+      if (built.source === 'app' && api.adminSync) {
+        // Refresh people, salaries (incl. corrections), revenue and settings for the live costs.
+        const { allocations, ...rest } = modelToLive(built.model);
+        await api.adminSync({ ...rest, profiles: Object.fromEntries(built.model.customers.map((c) => [c.code, { pm_ids: c.pmIds }])) });
+      }
       await reloadModel();
+      await imports.reload();
       setPubMsg({ ok: true, text: `Published ${built.model.period}. Everyone sees the new numbers on their next refresh.` });
     } catch (e) {
       setPubMsg({ ok: false, text: e.message });

@@ -121,10 +121,13 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
     const project = text(e['Allocated Projects']);
     if (!project) continue;
     const sp = subprojects.get(project);
+    // Allocations managed in the app carry their customer and PM explicitly.
+    const explicitCode = code(e['Billing Code']);
+    const explicitOwner = email(e['Owner PM']);
     const id = empId(e.ID);
     const salary = pay.get(id);
     if (!salary) noPay.set(id || text(e.Name), { id, name: text(e.Name), designation: text(e.Designation), project });
-    if (!sp && !isBenchProject(project)) unknownProjects.add(project);
+    if (!sp && !explicitCode && !isBenchProject(project)) unknownProjects.add(project);
     const util = num(e['Project Utilization(%)']);
     allocations.push({
       empId: id,
@@ -135,7 +138,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       skills: text(e['Skill Set']),
       experienceYears: num(e['Year of Experience']) || null,
       project,
-      code: sp ? sp.code : '',
+      code: explicitCode || (sp ? sp.code : ''),
+      ownerExplicit: explicitOwner || null,
       bench: isBenchProject(project),
       suffix: projectSuffix(project),
       utilPct: util,
@@ -190,7 +194,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         s.seatValueUSD += sp.seats.reduce((a, x) => a + x.count * x.rateUSD, 0);
       }
       for (const p of people) {
-        const s = slot(ownerOf(p.suffix));
+        const s = slot(p.ownerExplicit || ownerOf(p.suffix));
         s.costINR += p.costINR;
         s.people += 1;
       }
@@ -233,7 +237,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         seats: subs.flatMap((sp) => sp.seats.map((x) => ({ ...x, subproject: sp.name }))),
         pmSplit,
         people: people
-          .map(({ empId, name, designation, project, utilPct, billable, ctcMonthlyINR, costINR, suffix, skills, experienceYears }) => ({
+          .map(({ empId, name, designation, project, utilPct, billable, ctcMonthlyINR, costINR, suffix, skills, experienceYears, ownerExplicit }) => ({
             skills,
             experienceYears,
             empId,
@@ -241,7 +245,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
             isPm: pmIdByName.has(name.toLowerCase()),
             designation,
             project,
-            ownerPm: ownerOf(suffix),
+            ownerPm: ownerExplicit || ownerOf(suffix),
             utilPct,
             billable,
             ctcMonthlyINR,

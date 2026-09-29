@@ -72,6 +72,7 @@ export function cloudApi(me) {
     mode: 'cloud',
     ...masterApi(me),
     ...importsApi(me),
+    ...liveApi(me),
     async loadModel() {
       const audience = seesAll ? 'admin' : `pm:${me.pmId}`;
       const rows = must(await supabase.from('snapshots').select('data').eq('audience', audience).order('generated_at', { ascending: false }).limit(1));
@@ -251,6 +252,39 @@ export function importsApi(me) {
     },
   };
 }
+
+// --- Live allocations (step 4) -----------------------------------------------------------
+export function liveApi(me) {
+  const seesAll = me.role === 'admin' || me.role === 'leadership';
+  return {
+    async getLive() {
+      const [src, people, allocations, load, history, revenue, salaries] = await Promise.all([
+        supabase.from('app_settings').select('value').eq('key', 'allocSource').then(must),
+        supabase.from('people').select('*').then(must),
+        supabase.from('allocations').select('*').then(must),
+        supabase.rpc('person_load').then(must),
+        supabase.from('allocation_history').select('*').order('id', { ascending: false }).limit(300).then(must),
+        supabase.from('customer_revenue').select('*').then(must),
+        seesAll ? supabase.from('people_salaries').select('*').then(must) : [],
+      ]);
+      return {
+        source: src[0]?.value?.source || 'export',
+        since: src[0]?.value?.since || null,
+        people,
+        salaries: Object.fromEntries(salaries.map((s) => [s.emp_id, Number(s.ctc_monthly_inr)])),
+        allocations: allocations.map((a) => ({ ...a, util_pct: Number(a.util_pct) })),
+        load: Object.fromEntries(load.map((l) => [l.emp_id, Number(l.allocated_pct)])),
+        history,
+        revenue: revenue.map((r) => ({ ...r, revenue_inr: Number(r.revenue_inr), revenue_usd: Number(r.revenue_usd) })),
+      };
+    },
+    liveCosts: async (changes) => must(await supabase.rpc('customer_costs', { p_changes: changes })).map(numRow),
+    liveBench: async (changes) => must(await supabase.rpc('team_bench', { p_changes: changes })).map(numRow),
+    applyLive: async (changes, note) => ({ n: must(await supabase.rpc('apply_allocation_changes', { p_changes: changes, p_note: note || '' })) }),
+    adminSync: async (payload) => must(await supabase.rpc('admin_sync', { p: payload })),
+  };
+}
+const numRow = (r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v]));
 
 export async function lookupMe(session) {
   const email = session.user.email.toLowerCase();
