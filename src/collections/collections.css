@@ -112,3 +112,5 @@ pre.mail { white-space: pre-wrap; font: 13px/1.55 var(--font); background: var(-
 .right { margin-left: auto; }
 .chip.stale { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
 .chip.stale strong { color: var(--warn); }
+.app-switches { margin: 0 0 6px; }
+.app-switches .app-switch + .app-switch { margin-top: 4px; }

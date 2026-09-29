@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:local": "vite --mode offline",
     "build": "vite build && node scripts/check-dist.mjs",
-    "test": "node --test src/engine/engine.test.js src/engine/views.test.js src/engine/scenario.test.js src/engine/ratecard.test.js src/engine/validate.test.js src/engine/liveSync.test.js src/actions/logic.test.js src/whatsapp/messages.test.js supabase/schema.test.js supabase/allocations.test.js src/collections/engine/collections.test.js supabase/collections.test.js",
+    "test": "node --test src/engine/engine.test.js src/engine/views.test.js src/engine/scenario.test.js src/engine/ratecard.test.js src/engine/validate.test.js src/engine/liveSync.test.js src/actions/logic.test.js src/whatsapp/messages.test.js supabase/schema.test.js supabase/allocations.test.js src/collections/engine/collections.test.js supabase/collections.test.js src/master/engine.test.js supabase/master.test.js",
     "publish": "node --env-file=.env scripts/publish.mjs",
     "users": "node --env-file=.env scripts/users-sync.mjs",
     "migrate": "node --env-file=.env scripts/migrate-local.mjs",

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { pmView } from './views.js';
 
 // Keys that carry an individual's salary, or admin-only analysis.
-const FORBIDDEN = ['ctcMonthlyINR', 'detail', 'computedCostINR', 'reconciliation', 'costShare', 'dataQuality', 'totals', 'sources', 'employees', 'unclassified'];
+const FORBIDDEN = ['ctcMonthlyINR', 'baseMonthlyINR', 'incentiveMonthlyINR', 'detail', 'computedCostINR', 'reconciliation', 'costShare', 'dataQuality', 'totals', 'sources', 'employees', 'unclassified'];
 
 // Aggregates (customer / team / bench totals) are allowed in the PM view and are exact
 // (Matt's decision, 2026-09-29). On a one-person account an aggregate can equal one person's

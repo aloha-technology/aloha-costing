@@ -471,6 +471,7 @@ function CustomerEditor({ c, ops, onClose }) {
             <option value="billing">Billing (To)</option>
             <option value="escalation">Escalation (Day 30+)</option>
             <option value="cc">Cc always</option>
+            <option value="other">Other (not emailed)</option>
           </select>
           <button className="linkish" onClick={() => set('contacts', f.contacts.filter((_, j) => j !== i))}>
             remove

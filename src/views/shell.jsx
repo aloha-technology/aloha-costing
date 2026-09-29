@@ -87,3 +87,17 @@ export function BenchBanner({ model, me }) {
     </div>
   );
 }
+
+// Links to the other Aloha apps (Project Costing, Collections, Master data) at the top of the sidebar.
+export function AppSwitch({ items }) {
+  if (!items?.length) return null;
+  return (
+    <div className="app-switches">
+      {items.map((x) => (
+        <a key={x.label} className="app-switch" onClick={x.go}>
+          ⇄ {x.label}
+        </a>
+      ))}
+    </div>
+  );
+}

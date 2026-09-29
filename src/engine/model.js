@@ -296,6 +296,9 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       skills: text(e['Skill Set']),
       experienceYears: num(e['Year of Experience']) || null,
       ctcMonthlyINR: salary ? salary.ctc : null,
+      // Payroll split, shown in Master data (admin + leadership only, like CTC).
+      baseMonthlyINR: salary ? salary.base : null,
+      incentiveMonthlyINR: salary ? salary.incentive : null,
       allocations: [],
       benchPct: 0,
       benchProject: null,

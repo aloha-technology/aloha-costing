@@ -90,6 +90,16 @@ Aloha builds IT solutions for small businesses.
 - Data: `data/collections/` (local) or `col_*` tables + private `collections` bucket (cloud). Seeded from
   Matt's sheets by `npm run col:seed`; every seeded customer/open invoice is "not confirmed" until Matt checks it.
 
+## Master data (added 2026-09-29) — see docs/MASTER-DATA.md
+- Third section (`#m-…`, sidebar switch) for admin + leadership: customers, employees, PMs, campaigns, standard rates.
+- One home per fact, no copies: account fields (POCs with phone, legal name, terms, special discount, campaigns,
+  linked projectCodes) live in `col_customers`; project profile/rate card/last-revised in `customer_profiles` /
+  `customer_rates`; Matt's employee fields in `people_profiles` (never touched by admin_sync); PM WhatsApp in `pm_contacts`.
+- Imported values are the base, Matt's entries win, every merged field is labelled; contradictions are flagged.
+- Billed seats come from the invoicing sheet (`customer.invoicing.seats`); the portal's resource list is
+  "people assigned" (it counts non-billable people too, so never use it as billed seats).
+- The accounts role must not read `people` (policy in schema.sql / master.sql).
+
 ## Terminology (Aloha internal) — use everywhere in the UI
 - **COST** = actual **profit %** = (revenue − spend) / revenue. Target 70%. Never label it "margin".
 - **Spend** = rupees for people's time (CTC × allocation). **Managed** = COST ≥ 70% on project spend

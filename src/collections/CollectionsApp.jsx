@@ -2,7 +2,7 @@
 // Matt (admin) works here; leadership reads; the accounts team only sees the tax-invoice portal.
 import React, { useEffect, useMemo, useState } from 'react';
 import './collections.css';
-import { Icon } from '../views/shell.jsx';
+import { Icon, AppSwitch } from '../views/shell.jsx';
 import { useCollections } from './useCollections.js';
 import { buildQueue } from './engine/reminders.js';
 import { daysBetween, fmtDate } from './engine/dates.js';
@@ -52,7 +52,7 @@ const readHash = () => {
   return { tab: t.startsWith(COL_PREFIX) ? t.slice(COL_PREFIX.length) : '', focus: decodeURIComponent(f) };
 };
 
-export default function CollectionsApp({ viewer, api, onSwitch }) {
+export default function CollectionsApp({ viewer, api, switches }) {
   const { me } = viewer;
   const groups = NAV[me.role] || [];
   const tabs = groups.flatMap(([, l]) => l);
@@ -118,11 +118,7 @@ export default function CollectionsApp({ viewer, api, onSwitch }) {
             <div className="brand-sub">Collections</div>
           </div>
         </div>
-        {onSwitch && (
-          <a className="app-switch" onClick={onSwitch}>
-            ⇄ Switch to Project Costing
-          </a>
-        )}
+        <AppSwitch items={switches} />
         {groups.map(([title, list]) => (
           <div className="nav-group" key={title}>
             <div className="nav-title">{title}</div>

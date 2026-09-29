@@ -10,7 +10,7 @@ import Login, { ChangePassword } from './views/Login.jsx';
 import People from './views/People.jsx';
 import Play from './views/Play.jsx';
 import Allocations from './views/Allocations.jsx';
-import { Icon, Glossary, BenchBanner } from './views/shell.jsx';
+import { Icon, Glossary, BenchBanner, AppSwitch } from './views/shell.jsx';
 import { useMaster, Settings } from './views/Master.jsx';
 import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
@@ -18,6 +18,7 @@ import { useViewer } from './data/useViewer.js';
 import { summarize } from './actions/logic.js';
 import CollectionsApp from './collections/CollectionsApp.jsx';
 import { useColApi } from './collections/data/useColApi.js';
+import MasterApp from './master/MasterApp.jsx';
 
 // Left navigation per role: groups of [id, label, icon, subtitle].
 const NAV = {
@@ -107,27 +108,35 @@ export default function App() {
   return <Apps viewer={viewer} />;
 }
 
-// Two apps share the sign-in: Project Costing and Collections (hash #c-…). PMs only get Costing;
-// the accounts team only gets the Collections tax-invoice portal.
-const inCollections = () => location.hash.startsWith('#c-');
+// Three apps share the sign-in: Project Costing, Collections (#c-…) and Master data (#m-…).
+// PMs only get Costing; the accounts team only the Collections tax-invoice portal;
+// Master data is for Matt and leadership.
+const appOf = (role) => {
+  if (role === 'accounts') return 'collections';
+  if (role === 'pm') return 'costing';
+  const h = location.hash;
+  return h.startsWith('#c-') ? 'collections' : h.startsWith('#m-') ? 'master' : 'costing';
+};
+const HOME = { costing: '#overview', collections: '#c-dashboard', master: '#m-overview' };
+const LABEL = { costing: 'Project Costing', collections: 'Collections', master: 'Master data' };
 function Apps({ viewer }) {
   const role = viewer.me.role;
-  const [col, setCol] = useState(() => role === 'accounts' || (inCollections() && role !== 'pm'));
+  const [app, setApp] = useState(() => appOf(role));
   const colApi = useColApi(viewer);
   useEffect(() => {
-    const onHash = () => setCol(role === 'accounts' || (inCollections() && role !== 'pm'));
+    const onHash = () => setApp(appOf(role));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [role]);
-  if (col) {
-    if (!colApi) return <div className="empty">Loading…</div>;
-    const toCosting = role === 'accounts' ? null : () => ((location.hash = '#overview'), setCol(false));
-    return <CollectionsApp viewer={viewer} api={colApi} onSwitch={toCosting} />;
-  }
-  return <Main viewer={viewer} onSwitch={role === 'pm' ? null : () => ((location.hash = '#c-dashboard'), setCol(true))} />;
+  const allowed = role === 'admin' || role === 'leadership' ? ['costing', 'collections', 'master'] : [];
+  const switches = allowed.filter((x) => x !== app).map((x) => ({ label: LABEL[x], go: () => ((location.hash = HOME[x]), setApp(x)) }));
+  if (app === 'costing') return <Main viewer={viewer} switches={switches} />;
+  if (!colApi) return <div className="empty">Loading…</div>;
+  if (app === 'master') return <MasterApp viewer={viewer} colApi={colApi} switches={switches} />;
+  return <CollectionsApp viewer={viewer} api={colApi} switches={switches} />;
 }
 
-function Main({ viewer, onSwitch }) {
+function Main({ viewer, switches }) {
   const { me, api, can } = viewer;
   const groups = NAV[me.role] || NAV.pm;
   const items = useMemo(() => groups.flatMap(([, list]) => list), [groups]);
@@ -197,11 +206,7 @@ function Main({ viewer, onSwitch }) {
             <div className="brand-sub">Project Costing</div>
           </div>
         </div>
-        {onSwitch && (
-          <a className="app-switch" onClick={onSwitch}>
-            ⇄ Switch to Collections
-          </a>
-        )}
+        <AppSwitch items={switches} />
         {groups.map(([title, list]) => (
           <div className="nav-group" key={title}>
             <div className="nav-title">{title}</div>

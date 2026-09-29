@@ -405,7 +405,7 @@ alter table public.allocations enable row level security;
 alter table public.allocation_history enable row level security;
 alter table public.customer_revenue enable row level security;
 drop policy if exists people_read on public.people;
-create policy people_read on public.people for select to authenticated using (true);
+create policy people_read on public.people for select to authenticated using (coalesce(public.my_role() in ('admin', 'leadership', 'pm'), false)); -- not the accounts team
 drop policy if exists people_write on public.people;
 create policy people_write on public.people for all to authenticated using (public.is_admin()) with check (public.is_admin());
 drop policy if exists people_salaries_read on public.people_salaries;
