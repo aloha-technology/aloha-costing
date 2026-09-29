@@ -10,6 +10,7 @@ import Login, { ChangePassword } from './views/Login.jsx';
 import People from './views/People.jsx';
 import Play from './views/Play.jsx';
 import { Icon, Glossary, BenchBanner } from './views/shell.jsx';
+import { useMaster, Settings } from './views/Master.jsx';
 import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
 import { useViewer } from './data/useViewer.js';
@@ -36,7 +37,13 @@ const NAV = {
         ['whatsapp', 'WhatsApp', 'chat', 'Weekly digests and alerts for PMs'],
       ],
     ],
-    ['Data', [['checks', 'Data & validation', 'shield', 'Source files and cross-checks']]],
+    [
+      'Data',
+      [
+        ['checks', 'Data & validation', 'shield', 'Source files and cross-checks'],
+        ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
+      ],
+    ],
   ],
   leadership: [
     ['Overview', [['overview', 'Dashboard', 'grid', 'Company COST, spend layers and where to act']]],
@@ -56,7 +63,13 @@ const NAV = {
         ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
       ],
     ],
-    ['Data', [['checks', 'Data & validation', 'shield', 'Source files and cross-checks']]],
+    [
+      'Data',
+      [
+        ['checks', 'Data & validation', 'shield', 'Source files and cross-checks'],
+        ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
+      ],
+    ],
   ],
   pm: [
     [
@@ -127,6 +140,7 @@ function Main({ viewer }) {
 
   const store = useActions(api);
   const comms = useComms(can.edit ? api : null);
+  const master = useMaster(api);
   const pmsById = useMemo(() => Object.fromEntries((model?.pms || []).map((p) => [p.id, p])), [model]);
   const go = (t, f = '') => {
     // Links into views a role doesn't have (e.g. a PM clicking a PM name) go home instead.
@@ -140,7 +154,7 @@ function Main({ viewer }) {
   if (error) return <div className="empty">{error}</div>;
   if (!model) return <div className="empty">Loading…</div>;
 
-  const ctx = { model, pmsById, go, focus, setFocus, store, comms, me, can };
+  const ctx = { model, pmsById, go, focus, setFocus, store, comms, me, can, master };
   const overdue = summarize(store.actions).overdue;
   const closureRequests = store.actions.filter((a) => a.status === 'closure_requested').length;
   const current = items.find(([id]) => id === tab) || items[0];
@@ -214,6 +228,7 @@ function Main({ viewer }) {
           {tab === 'whatsapp' && <WhatsApp {...ctx} />}
           {tab === 'bench' && <Bench {...ctx} />}
           {tab === 'checks' && <DataChecks {...ctx} />}
+          {tab === 'settings' && can.seeAll && <Settings master={master} can={can} key={master.loaded ? 'ready' : 'loading'} />}
         </main>
         {api.mode === 'preview' && (
           <div className="preview-bar">

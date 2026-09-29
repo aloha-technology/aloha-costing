@@ -118,3 +118,31 @@ test('admin can create and close actions; one open action per finding', async ()
     await assert.rejects(rows(`select pm_action_update('A1', 'note', 'late note')`), /closed/);
   });
 });
+
+test('customer profiles, rates and settings: who can read and write', async () => {
+  await db.exec(`
+    insert into customer_profiles (code, name, brief, pm_ids) values ('C1', 'Acme', 'ERP rebuild', '{priya@aloha.test}'), ('C2', 'Beta', 'CRM', '{karan@aloha.test}');
+    insert into customer_rates (code, roles, last_revised) values ('C1', '{"Developer": {"billRateUSD": 2500}}', '2025-08-01');
+    insert into app_settings (key, value) values ('costing', '{"revisionMonths": 12}');
+  `);
+  await as('priya@aloha.test', async () => {
+    assert.deepEqual((await rows('select code from customer_profiles')).map((r) => r.code), ['C1']);
+    assert.equal((await rows('select * from customer_rates')).length, 0, 'PMs never see the rate card');
+    assert.equal((await rows('select * from app_settings')).length, 1);
+    const r = await db.query(`update customer_profiles set brief = 'x' where code = 'C1'`);
+    assert.equal(r.affectedRows, 0);
+  });
+  await as('boss@aloha.test', async () => {
+    assert.equal((await rows('select * from customer_profiles')).length, 2);
+    assert.equal((await rows('select * from customer_rates')).length, 1);
+    await assert.rejects(rows(`insert into customer_rates (code) values ('C9')`));
+  });
+  await as('matt@aloha.test', async () => {
+    await rows(`insert into customer_profiles (code, name, manual) values ('NEW1', 'New Co', true)`);
+    await rows(`update customer_rates set reason = 'Volume' where code = 'C1'`);
+    await rows(`update app_settings set value = '{"revisionMonths": 18}' where key = 'costing'`);
+  });
+  await as(null, async () => {
+    await assert.rejects(rows('select * from customer_profiles'));
+  });
+});

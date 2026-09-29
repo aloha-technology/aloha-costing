@@ -3,6 +3,7 @@
 //   /api/actions   action items           -> data/actions.json
 //   /api/contacts  PM WhatsApp numbers    -> data/pm-contacts.json
 //   /api/comms     log of messages sent   -> data/comms.json
+//   /api/master    customer profiles, rate cards, settings -> data/master.json
 // All files live in data/ (git-ignored).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,6 +25,7 @@ export function actionsApi({ dir }) {
   const actions = store('actions.json', () => []);
   const contacts = store('pm-contacts.json', () => ({}));
   const comms = store('comms.json', () => []);
+  const master = store('master.json', () => ({ profiles: {}, rates: {}, settings: null }));
 
   const readBody = (req) =>
     new Promise((resolve, reject) => {
@@ -98,6 +100,26 @@ export function actionsApi({ dir }) {
             all[id] = { whatsapp: String(whatsapp).trim(), groupLink: String(groupLink).trim(), updatedAt: new Date().toISOString() };
             contacts.save(all);
             return send(res, 200, all[id]);
+          }
+          send(res, 405, { error: 'Method not allowed' });
+        })
+      );
+
+      server.middlewares.use(
+        '/api/master',
+        route(async (req, res, id) => {
+          const m = master.load();
+          if (req.method === 'GET' && !id) return send(res, 200, m);
+          const [kind, code] = id.split('/');
+          if (req.method === 'PUT' && kind === 'settings') {
+            m.settings = await readBody(req);
+            master.save(m);
+            return send(res, 200, m.settings);
+          }
+          if (req.method === 'PUT' && (kind === 'profiles' || kind === 'rates') && code) {
+            m[kind][code] = { ...(await readBody(req)), updatedBy: 'Matt', updatedAt: new Date().toISOString() };
+            master.save(m);
+            return send(res, 200, m[kind][code]);
           }
           send(res, 405, { error: 'Method not allowed' });
         })

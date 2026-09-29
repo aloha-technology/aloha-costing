@@ -69,6 +69,7 @@ export function cloudApi(me) {
 
   return {
     mode: 'cloud',
+    ...masterApi(me),
     async loadModel() {
       const audience = seesAll ? 'admin' : `pm:${me.pmId}`;
       const rows = must(await supabase.from('snapshots').select('data').eq('audience', audience).order('generated_at', { ascending: false }).limit(1));
@@ -142,6 +143,41 @@ export function cloudApi(me) {
         }
       }
       return entry;
+    },
+  };
+}
+
+// --- Customer master data --------------------------------------------------------------
+const profileFromRow = (r) => ({ name: r.name, brief: r.brief, technologies: r.technologies || [], teams: r.teams, notes: r.notes, manual: r.manual, pmIds: r.pm_ids || [], updatedBy: r.updated_by, updatedAt: r.updated_at });
+const ratesFromRow = (r) => ({ roles: r.roles || {}, reason: r.reason || '', lastRevised: r.last_revised, updatedBy: r.updated_by, updatedAt: r.updated_at });
+
+export function masterApi(me) {
+  const by = me.name || me.email;
+  return {
+    async getMaster() {
+      const [p, r, s] = await Promise.all([
+        supabase.from('customer_profiles').select('*').then(must),
+        supabase.from('customer_rates').select('*').then(must),
+        supabase.from('app_settings').select('*').eq('key', 'costing').then(must),
+      ]);
+      return {
+        profiles: Object.fromEntries(p.map((x) => [x.code, profileFromRow(x)])),
+        rates: Object.fromEntries(r.map((x) => [x.code, ratesFromRow(x)])),
+        settings: s[0]?.value || null,
+      };
+    },
+    async saveProfile(code, p) {
+      const row = { code, name: p.name || '', brief: p.brief || '', technologies: p.technologies || [], teams: p.teams ?? null, notes: p.notes || '', manual: Boolean(p.manual), updated_by: by, updated_at: new Date().toISOString() };
+      if (p.pmIds) row.pm_ids = p.pmIds;
+      return profileFromRow(must(await supabase.from('customer_profiles').upsert(row).select().single()));
+    },
+    async saveRates(code, r) {
+      const row = { code, roles: r.roles || {}, reason: r.reason || '', last_revised: r.lastRevised || null, updated_by: by, updated_at: new Date().toISOString() };
+      return ratesFromRow(must(await supabase.from('customer_rates').upsert(row).select().single()));
+    },
+    async saveSettings(s) {
+      must(await supabase.from('app_settings').upsert({ key: 'costing', value: s, updated_by: by, updated_at: new Date().toISOString() }));
+      return s;
     },
   };
 }

@@ -299,3 +299,13 @@ input.num { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(
 .login-card label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .login-card input { font: inherit; font-size: 15px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
 .preview-bar { position: sticky; bottom: 0; margin: 16px 28px 0; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: var(--radius); padding: 8px 12px; text-align: center; }
+
+/* Customer master data */
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 22px; }
+.profile-grid .wide { grid-column: 1 / -1; }
+.profile-grid .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 3px; }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--low-bg); color: var(--text-2); }
+.wrap-cell { white-space: normal; max-width: 320px; }
+input.wide-num { width: 100px; }
+input.text-in { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); width: 100%; min-width: 200px; }

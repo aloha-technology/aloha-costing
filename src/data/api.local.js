@@ -24,6 +24,10 @@ export const localApi = {
   saveContact: (pmId, contact) => call(`/api/contacts/${encodeURIComponent(pmId)}`, { method: 'PUT', body: JSON.stringify(contact) }),
   listComms: () => call('/api/comms'),
   markSent: async (entry) => (await call('/api/comms', { method: 'POST', body: JSON.stringify(entry) })).entry,
+  getMaster: () => call('/api/master'),
+  saveProfile: (code, p) => call(`/api/master/profiles/${encodeURIComponent(code)}`, { method: 'PUT', body: JSON.stringify(p) }),
+  saveRates: (code, r) => call(`/api/master/rates/${encodeURIComponent(code)}`, { method: 'PUT', body: JSON.stringify(r) }),
+  saveSettings: (s) => call('/api/master/settings', { method: 'PUT', body: JSON.stringify(s) }),
 };
 
 export function previewApi(me) {
@@ -41,5 +45,15 @@ export function previewApi(me) {
     },
     createActions: readOnly,
     updateAction: readOnly,
+    saveProfile: readOnly,
+    saveRates: readOnly,
+    saveSettings: readOnly,
+    async getMaster() {
+      const m = await localApi.getMaster();
+      if (me.role !== 'pm') return m;
+      // PMs: profiles of their own customers only, never the rate card.
+      const mine = new Set((await this.loadModel()).customers.map((c) => c.code));
+      return { profiles: Object.fromEntries(Object.entries(m.profiles).filter(([code]) => mine.has(code))), rates: {}, settings: m.settings };
+    },
   };
 }

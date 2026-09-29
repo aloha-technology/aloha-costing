@@ -113,6 +113,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       email: email(e.Email),
       designation: role(e.Designation),
       reportingManager: text(e['Reporting Manager']),
+      skills: text(e['Skill Set']),
+      experienceYears: num(e['Year of Experience']) || null,
       project,
       code: sp ? sp.code : '',
       bench: isBenchProject(project),
@@ -211,7 +213,9 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         seats: subs.flatMap((sp) => sp.seats.map((x) => ({ ...x, subproject: sp.name }))),
         pmSplit,
         people: people
-          .map(({ empId, name, designation, project, utilPct, billable, ctcMonthlyINR, costINR, suffix }) => ({
+          .map(({ empId, name, designation, project, utilPct, billable, ctcMonthlyINR, costINR, suffix, skills, experienceYears }) => ({
+            skills,
+            experienceYears,
             empId,
             name,
             isPm: pmIdByName.has(name.toLowerCase()),
@@ -265,6 +269,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       email: email(e.Email),
       designation: role(e.Designation),
       reportingManager: text(e['Reporting Manager']),
+      skills: text(e['Skill Set']),
+      experienceYears: num(e['Year of Experience']) || null,
       ctcMonthlyINR: salary ? salary.ctc : null,
       allocations: [],
       benchPct: 0,

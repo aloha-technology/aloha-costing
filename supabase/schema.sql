@@ -194,3 +194,57 @@ create policy comms_log_leadership_read on public.comms_log for select to authen
 
 -- Nothing is readable without logging in.
 revoke all on all tables in schema public from anon;
+
+-- ---------------------------------------------------------------------------
+-- Customer master data (step 2). Admin writes; leadership reads all; PMs read the
+-- profile (brief, technologies, teams) of their own customers, never the rate card.
+-- ---------------------------------------------------------------------------
+create table if not exists public.customer_profiles (
+  code text primary key,
+  name text not null default '',
+  brief text not null default '',
+  technologies text[] not null default '{}',
+  teams integer,
+  notes text not null default '',
+  manual boolean not null default false,       -- added in the app, not from an export
+  pm_ids text[] not null default '{}',         -- kept in sync by the publish script
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+alter table public.customer_profiles enable row level security;
+drop policy if exists customer_profiles_read on public.customer_profiles;
+create policy customer_profiles_read on public.customer_profiles for select to authenticated
+  using (public.can_see_all() or public.my_pm_id() = any (pm_ids));
+drop policy if exists customer_profiles_write on public.customer_profiles;
+create policy customer_profiles_write on public.customer_profiles for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+create table if not exists public.customer_rates (
+  code text primary key,
+  roles jsonb not null default '{}'::jsonb,    -- { role: { billRateUSD?, reason? } }
+  reason text not null default '',             -- default discount reason for the customer
+  last_revised date,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+alter table public.customer_rates enable row level security;
+drop policy if exists customer_rates_read on public.customer_rates;
+create policy customer_rates_read on public.customer_rates for select to authenticated using (public.can_see_all());
+drop policy if exists customer_rates_write on public.customer_rates;
+create policy customer_rates_write on public.customer_rates for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_settings enable row level security;
+drop policy if exists app_settings_read on public.app_settings;
+create policy app_settings_read on public.app_settings for select to authenticated using (true);
+drop policy if exists app_settings_write on public.app_settings;
+create policy app_settings_write on public.app_settings for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+revoke all on public.customer_profiles, public.customer_rates, public.app_settings from anon;

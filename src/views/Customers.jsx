@@ -2,18 +2,25 @@ import React, { useMemo, useState } from 'react';
 import { inr, usd, pct } from '../format.js';
 import { Kpi, Margin, Severity, Table, Status, Layers } from './ui.jsx';
 import { FindingAction } from './ActionParts.jsx';
+import { ProfileCard, RateCardCard, AddCustomer, ReviewTag } from './Master.jsx';
+import { rateCard } from '../engine/ratecard.js';
 
-export default function Customers({ model, pmsById, focus, setFocus, store, go, can }) {
+export default function Customers({ model, pmsById, focus, setFocus, store, go, can, master }) {
   const customer = model.customers.find((c) => c.code === focus);
-  if (customer) return <CustomerDetail c={customer} model={model} pmsById={pmsById} store={store} go={go} can={can} back={() => setFocus('')} />;
-  return <CustomerList model={model} pmsById={pmsById} open={setFocus} />;
+  if (customer) return <CustomerDetail c={customer} model={model} pmsById={pmsById} store={store} go={go} can={can} master={master} back={() => setFocus('')} />;
+  const manual = master?.profiles[focus]?.manual && master.profiles[focus];
+  if (manual) return <ManualCustomer code={focus} p={manual} model={model} master={master} can={can} pmsById={pmsById} back={() => setFocus('')} />;
+  return <CustomerList model={model} pmsById={pmsById} open={setFocus} master={master} can={can} />;
 }
 
-function CustomerList({ model, pmsById, open }) {
+function CustomerList({ model, pmsById, open, master, can }) {
   const [q, setQ] = useState('');
   const [pm, setPm] = useState('');
   const [onlyBelow, setOnlyBelow] = useState(false);
+  const [review, setReview] = useState('');
+  const [adding, setAdding] = useState(false);
   const target = model.target;
+  const reviewOf = (c) => rateCard(c, master?.rates[c.code], master?.settings).status;
 
   const rows = useMemo(
     () =>
@@ -21,10 +28,13 @@ function CustomerList({ model, pmsById, open }) {
         (c) =>
           (!q || c.name.toLowerCase().includes(q.toLowerCase())) &&
           (!pm || c.pmIds.includes(pm)) &&
-          (!onlyBelow || c.belowTarget)
+          (!onlyBelow || c.belowTarget) &&
+          (!review || (review === 'attention' ? ['due', 'soon', 'unknown'].includes(reviewOf(c)) : reviewOf(c) === review))
       ),
-    [model, q, pm, onlyBelow]
+    [model, q, pm, onlyBelow, review, master] // eslint-disable-line react-hooks/exhaustive-deps
   );
+  // Customers added in the app that aren't in the billing/allocation data yet.
+  const manualOnly = Object.entries(master?.profiles || {}).filter(([code, p]) => p.manual && !model.customers.some((c) => c.code === code));
 
   const pmNames = (c) => c.pmIds.map((id) => pmsById[id]?.name.split(' ')[0]).join(', ');
   const columns = [
@@ -38,6 +48,7 @@ function CustomerList({ model, pmsById, open }) {
     { key: 'managed', label: 'Status', render: (c) => <Status managed={!c.belowTarget} />, sort: (c) => (c.belowTarget ? 0 : 1) },
     { key: 'gapINR', label: 'Cost off by', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
     { key: 'seats', label: 'Billed / allocated', align: 'right', render: (c) => `${c.billable} / ${c.allocated}`, sort: (c) => c.allocated - c.billable },
+    ...(can?.seeAll ? [{ key: 'review', label: 'Rate review', render: (c) => <ReviewTag status={reviewOf(c)} />, sort: (c) => ({ due: 3, soon: 2, unknown: 1, ok: 0 })[reviewOf(c)] }] : []),
     {
       key: 'findings',
       label: 'Flags',
@@ -71,14 +82,43 @@ function CustomerList({ model, pmsById, open }) {
         <label>
           <input type="checkbox" checked={onlyBelow} onChange={(e) => setOnlyBelow(e.target.checked)} /> Not managed only
         </label>
+        {can?.seeAll && (
+          <select value={review} onChange={(e) => setReview(e.target.value)}>
+            <option value="">Any rate review status</option>
+            <option value="attention">Needs attention (due, soon or not recorded)</option>
+            <option value="due">Due for revision</option>
+            <option value="soon">Due within 60 days</option>
+            <option value="unknown">Not recorded</option>
+            <option value="ok">Up to date</option>
+          </select>
+        )}
         <span className="muted">{rows.length} customers</span>
+        <span className="spacer" />
+        {can?.edit && (
+          <button className="primary" onClick={() => setAdding((a) => !a)}>
+            + Add customer
+          </button>
+        )}
       </div>
+      {adding && <AddCustomer model={model} master={master} onDone={(code) => { setAdding(false); if (code) open(code); }} />}
       <Table columns={columns} rows={rows} initialSort={{ key: 'gapINR', dir: 'desc' }} onRowClick={(c) => open(c.code)} rowKey={(c) => c.code} />
+      {manualOnly.length > 0 && (
+        <>
+          <h3>Added in the app, no billing or allocation data yet ({manualOnly.length})</h3>
+          <ul className="plain">
+            {manualOnly.map(([code, p]) => (
+              <li key={code}>
+                <a onClick={() => open(code)}>{p.name}</a> <span className="muted small-text">· {code}{p.pmIds?.[0] ? ` · ${pmsById[p.pmIds[0]]?.name || ''}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
 
-function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
+function CustomerDetail({ c, model, pmsById, store, go, can, master, back }) {
   const target = model.target;
   const nonBillableCost = c.people.filter((p) => !p.billable).reduce((a, p) => a + p.costINR, 0);
   const seatsByRole = Object.values(
@@ -122,6 +162,9 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
           />
         )}
       </section>
+
+      {master && <ProfileCard c={c} master={master} can={can} pmsById={pmsById} />}
+      {master && can.seeAll && <RateCardCard c={c} master={master} can={can} />}
 
       <section className="card">
         <h2>Spend layers</h2>
@@ -177,6 +220,8 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
           columns={[
             { key: 'name', label: 'Name', render: (p) => <strong>{p.name}</strong> },
             { key: 'designation', label: 'Role' },
+            { key: 'experienceYears', label: 'Exp (yrs)', align: 'right', render: (p) => p.experienceYears ?? '—' },
+            { key: 'skills', label: 'Skills', render: (p) => <span className="skills">{p.skills || '—'}</span> },
             { key: 'ownerPm', label: 'PM', render: (p) => pmsById[p.ownerPm]?.name.split(' ')[0], sort: (p) => pmsById[p.ownerPm]?.name },
             { key: 'utilPct', label: 'Time here', align: 'right', render: (p) => `${p.utilPct}%` },
             { key: 'billable', label: 'Billable', render: (p) => (p.billable ? 'Yes' : <span className="pill bad">No</span>), sort: (p) => (p.billable ? 1 : 0) },
@@ -213,3 +258,22 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
 }
 
 const fmtSeats = (n) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(2));
+
+// A customer added in the app before it appears in billing/allocation data: profile only.
+function ManualCustomer({ code, p, model, master, can, pmsById, back }) {
+  const c = { code, name: p.name, pmIds: p.pmIds || [], pmSplit: [], people: [], seats: [] };
+  return (
+    <>
+      <button className="back" onClick={back}>
+        ← All customers
+      </button>
+      <div className="title-row">
+        <h2>{p.name}</h2>
+        <span className="pill warn">No billing or allocation data yet</span>
+        <span className="muted">{code}</span>
+      </div>
+      <ProfileCard c={c} master={master} can={can} pmsById={pmsById} />
+      {can.seeAll && <RateCardCard c={c} master={master} can={can} />}
+    </>
+  );
+}

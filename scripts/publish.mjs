@@ -14,4 +14,9 @@ const rows = [
 ];
 
 must(await supabase.from('snapshots').upsert(rows, { onConflict: 'period,audience' }), 'Upload snapshots');
+
+// Keep each customer's name and PM list on its profile (brief/tech/notes are left as Matt entered them),
+// so a PM can read the profiles of exactly the customers they're on.
+const sync = await supabase.from('customer_profiles').upsert(model.customers.map((c) => ({ code: c.code, name: c.name, pm_ids: c.pmIds })), { onConflict: 'code' });
+if (sync.error) console.warn(`Customer profiles not synced (${sync.error.message}). Run the latest supabase/schema.sql in the SQL editor, then publish again.`);
 console.log(`Published ${model.period} (${period}): 1 admin snapshot + ${rows.length - 1} PM snapshots.`);

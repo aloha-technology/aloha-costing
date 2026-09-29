@@ -10,7 +10,7 @@
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
 
 const CUSTOMER_KEYS = ['code', 'name', 'pmIds', 'accountPm', 'revenueUSD', 'revenueINR', 'revenueSource', 'costingRevenueUSD', 'revenueDiffUSD', 'costINR', 'costBasis', 'fx', 'margin', 'belowTarget', 'managed', 'gapINR', 'gapUSD', 'billable', 'allocated', 'layers', 'pmSpendINR', 'benchShareINR', 'supportShareINR'];
-const PERSON_KEYS = ['empId', 'name', 'designation', 'project', 'ownerPm', 'utilPct', 'billable', 'isPm'];
+const PERSON_KEYS = ['empId', 'name', 'designation', 'project', 'ownerPm', 'utilPct', 'billable', 'isPm', 'skills', 'experienceYears'];
 const SEAT_KEYS = ['role', 'count', 'rateUSD', 'subproject'];
 const FINDING_KEYS = ['id', 'kind', 'severity', 'title', 'pmText', 'ask', 'action', 'ownerPmIds'];
 const PM_SELF_KEYS = ['id', 'name', 'email', 'source', 'customerCodes', 'accountOwnerOf', 'customers', 'belowTarget', 'criticalFindings', 'estRevenueINR', 'estCostINR', 'estMargin', 'gapINR', 'benchPeople', 'benchCostINR', 'teamLayers'];

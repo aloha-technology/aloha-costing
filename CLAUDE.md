@@ -87,6 +87,8 @@ Aloha builds IT solutions for small businesses.
 
 ## Roadmap agreed 2026-09-29 (step by step)
 1. Left-nav redesign, terminology, US$ rate + billed seats shown, cost layers — done.
+   Step 2 done: customer profiles (PM-readable), rate cards (admin+leadership), Settings with
+   standard rates ($3,000 default, AI Engineer $4,000) and 12-month revision; `src/engine/ratecard.js`.
 2. Customer master data (brief, tech, teams, people skills/exp) + rate card (bill vs Aloha standard
    rate, discount % + reason, last revised, due for revision).
 3. Uploads (payroll, billing, allocations) with per-dataset/record validation by Matt; classify the
