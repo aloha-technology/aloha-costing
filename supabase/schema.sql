@@ -617,7 +617,7 @@ begin
   end if;
 
   if p ? 'allocations' then
-    delete from public.allocations;
+    delete from public.allocations where true; -- Supabase rejects DELETE without WHERE
     insert into public.allocations (id, emp_id, customer_code, subproject, owner_pm, util_pct, billable, updated_by)
       select x.id, x.emp_id, x.customer_code, coalesce(x.subproject, ''), x.owner_pm, x.util_pct, coalesce(x.billable, false), who
       from jsonb_to_recordset(p -> 'allocations')

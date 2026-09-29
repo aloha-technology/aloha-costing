@@ -174,3 +174,10 @@ test('uploads, validations, classifications and corrections: access', async () =
     await assert.rejects(rows('select * from import_files'));
   });
 });
+
+test('no DELETE or UPDATE without WHERE (Supabase rejects them; PGlite does not)', () => {
+  const sql = fs.readFileSync(new URL('./schema.sql', import.meta.url), 'utf8').replace(/--.*$/gm, '');
+  const stmts = sql.split(';').map((s) => s.replace(/\s+/g, ' ').trim());
+  const bad = stmts.filter((s) => /\b(delete from|update)\s+public\.\w+/i.test(s) && !/\bwhere\b/i.test(s) && !/\bon conflict\b/i.test(s));
+  assert.deepEqual(bad, []);
+});
