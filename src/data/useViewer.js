@@ -15,9 +15,9 @@ export function permissions(role) {
 // Resolves who is looking and which backend to use.
 // status: 'loading' | 'signed-out' | 'no-access' | 'change-password' | 'ready'
 export function useViewer() {
-  // Local mode can preview other roles with ?as=leadership or ?as=pm:<pm id>.
+  // Local mode can preview other roles with ?as=leadership, ?as=accounts or ?as=pm:<pm id>.
   const as = new URLSearchParams(location.search).get('as') || '';
-  const localMe = as === 'leadership' ? { role: 'leadership', name: 'Leadership (preview)' } : as.startsWith('pm:') ? { role: 'pm', pmId: as.slice(3), name: 'PM (preview)' } : { role: 'admin', name: 'Matt' };
+  const localMe = as === 'leadership' ? { role: 'leadership', name: 'Leadership (preview)' } : as === 'accounts' ? { role: 'accounts', name: 'Accounts (preview)' } : as.startsWith('pm:') ? { role: 'pm', pmId: as.slice(3), name: 'PM (preview)' } : { role: 'admin', name: 'Matt' };
   const [state, setState] = useState(CLOUD ? { status: 'loading' } : { status: 'ready', me: { email: null, ...localMe }, preview: localMe.role !== 'admin' });
   const [cloud, setCloud] = useState(null);
 

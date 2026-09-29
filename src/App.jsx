@@ -15,6 +15,8 @@ import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
 import { useViewer } from './data/useViewer.js';
 import { summarize } from './actions/logic.js';
+import CollectionsApp from './collections/CollectionsApp.jsx';
+import { useColApi } from './collections/data/useColApi.js';
 
 // Left navigation per role: groups of [id, label, icon, subtitle].
 const NAV = {
@@ -98,10 +100,30 @@ export default function App() {
   if (viewer.status === 'no-access')
     return <Login supabase={viewer.supabase} notice={`${viewer.email} is signed in but hasn't been given access. Ask Matt to add you, or sign in with another email.`} />;
   if (viewer.status === 'error') return <div className="empty">{viewer.error}</div>;
-  return <Main viewer={viewer} />;
+  return <Apps viewer={viewer} />;
 }
 
-function Main({ viewer }) {
+// Two apps share the sign-in: Project Costing and Collections (hash #c-…). PMs only get Costing;
+// the accounts team only gets the Collections tax-invoice portal.
+const inCollections = () => location.hash.startsWith('#c-');
+function Apps({ viewer }) {
+  const role = viewer.me.role;
+  const [col, setCol] = useState(() => role === 'accounts' || (inCollections() && role !== 'pm'));
+  const colApi = useColApi(viewer);
+  useEffect(() => {
+    const onHash = () => setCol(role === 'accounts' || (inCollections() && role !== 'pm'));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [role]);
+  if (col) {
+    if (!colApi) return <div className="empty">Loading…</div>;
+    const toCosting = role === 'accounts' ? null : () => ((location.hash = '#overview'), setCol(false));
+    return <CollectionsApp viewer={viewer} api={colApi} onSwitch={toCosting} />;
+  }
+  return <Main viewer={viewer} onSwitch={role === 'pm' ? null : () => ((location.hash = '#c-dashboard'), setCol(true))} />;
+}
+
+function Main({ viewer, onSwitch }) {
   const { me, api, can } = viewer;
   const groups = NAV[me.role] || NAV.pm;
   const items = useMemo(() => groups.flatMap(([, list]) => list), [groups]);
@@ -169,6 +191,11 @@ function Main({ viewer }) {
             <div className="brand-sub">Project Costing</div>
           </div>
         </div>
+        {onSwitch && (
+          <a className="app-switch" onClick={onSwitch}>
+            ⇄ Switch to Collections
+          </a>
+        )}
         {groups.map(([title, list]) => (
           <div className="nav-group" key={title}>
             <div className="nav-title">{title}</div>

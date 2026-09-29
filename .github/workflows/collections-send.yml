@@ -1,0 +1,37 @@
+# Sends Collections emails Matt approved (and stages he set to auto-send), every 30 minutes
+# on weekdays, 9:00–19:30 India time. Needs repository *secrets* (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   (service role: full database access, secret)
+#   SMTP_USER, SMTP_PASS                      (Yahoo Business Mail address + app password)
+# Optional secrets: SMTP_HOST (default smtp.bizmail.yahoo.com), SMTP_PORT (465), SMTP_FROM.
+# Disabled until COLLECTIONS_SEND_ENABLED (repository variable) is "true".
+name: Collections email sender
+
+on:
+  schedule:
+    - cron: '*/30 3-14 * * 1-5'
+  workflow_dispatch:
+
+concurrency:
+  group: collections-send
+  cancel-in-progress: false
+
+jobs:
+  send:
+    if: vars.COLLECTIONS_SEND_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=optional
+      - run: node scripts/collections-send.mjs --cloud
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}

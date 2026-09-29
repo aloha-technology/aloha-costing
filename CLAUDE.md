@@ -75,6 +75,21 @@ Aloha builds IT solutions for small businesses.
   and drops them in `data/inbox/` (git-ignored, confidential). Treat Zoho and QB rows as
   possibly overlapping; match on invoice number + client before merging.
 
+## App #2: Collections (added 2026-09-29) — see docs/COLLECTIONS.md
+- Pending-invoice follow-up, payments (currency, bank charges, payer vs contract name), contracts
+  repository, tax invoices (accounts upload, Matt checks and sends), Excel report for Sid.
+- Same site and sign-in as Costing (hash routes `#c-…`, sidebar switch). Roles: admin writes, leadership
+  reads, new `accounts` role sees only the tax-invoice portal, PMs see nothing. Enforced in
+  `supabase/collections.sql` (tested by `supabase/collections.test.js`).
+- Timeline counts days since invoice date (net 15): 5 gentle, 10 follow-up, 16 overdue (+PM), 20/27 push,
+  30 escalate (+Nidhi + customer escalation), 35 escalate more, 40 stop work. Templates are Matt's
+  (`Aloha_Invoice_Templates_With_Subject Line.docx`), in `src/collections/engine/settings.js`.
+- No email reaches a customer without Matt's click unless he turns on Auto-send for a stage. Sending is
+  SMTP (Yahoo Business Mail app password) via `npm run col:send` or the scheduled GitHub Action, which is
+  off until the repo variable COLLECTIONS_SEND_ENABLED=true.
+- Data: `data/collections/` (local) or `col_*` tables + private `collections` bucket (cloud). Seeded from
+  Matt's sheets by `npm run col:seed`; every seeded customer/open invoice is "not confirmed" until Matt checks it.
+
 ## Terminology (Aloha internal) — use everywhere in the UI
 - **COST** = actual **profit %** = (revenue − spend) / revenue. Target 70%. Never label it "margin".
 - **Spend** = rupees for people's time (CTC × allocation). **Managed** = COST ≥ 70% on project spend

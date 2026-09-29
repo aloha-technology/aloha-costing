@@ -14,6 +14,10 @@ if (fs.existsSync(modelFile)) {
   }
 }
 
+// Collections customers (data/collections, confidential) must not reach the build either.
+const colFile = path.resolve('data', 'collections', 'customers.json');
+if (fs.existsSync(colFile)) for (const c of JSON.parse(fs.readFileSync(colFile, 'utf8'))) if (c.name.length > 5) names.add(c.name);
+
 const problems = [];
 const walk = (d) => {
   for (const f of fs.readdirSync(d)) {

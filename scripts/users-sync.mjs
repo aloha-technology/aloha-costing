@@ -1,5 +1,5 @@
-// Gives people access: PMs (from the invoicing/costing data) plus the admins and
-// leadership listed in data/users.json. Shows the plan first; nothing changes without --apply.
+// Gives people access: PMs (from the invoicing/costing data) plus the admins, leadership and
+// accounts team listed in data/users.json. Shows the plan first; nothing changes without --apply.
 //   npm run users            # preview
 //   npm run users -- --apply # create logins + roles
 //   npm run users -- --only=a@x.com --apply   # just these people
@@ -24,6 +24,8 @@ const model = loadModel();
 const wanted = new Map();
 for (const x of cfg.admins || []) wanted.set(entry(x).email, { ...entry(x), role: 'admin', pm_id: null });
 for (const x of cfg.leadership || []) if (!wanted.has(entry(x).email)) wanted.set(entry(x).email, { ...entry(x), role: 'leadership', pm_id: null });
+// Accounts team: Collections tax-invoice portal only (needs supabase/collections.sql).
+for (const x of cfg.accounts || []) if (!wanted.has(entry(x).email)) wanted.set(entry(x).email, { ...entry(x), role: 'accounts', pm_id: null });
 const excluded = new Set((cfg.excludePms || []).map(lower));
 const noEmail = [];
 for (const pm of model.pms) {
