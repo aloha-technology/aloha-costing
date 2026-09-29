@@ -146,3 +146,38 @@ test('customer profiles, rates and settings: who can read and write', async () =
     await assert.rejects(rows('select * from customer_profiles'));
   });
 });
+
+test('uploads, validations, classifications and corrections: access', async () => {
+  await as('matt@aloha.test', async () => {
+    await rows(`insert into import_files (period, kind, file_name, rows) values ('2026-09', 'paysheet', 'pay.xlsx', '[{"ID":"1","CTC":100000}]')`);
+    await rows(`insert into dataset_validations (period, kind, status) values ('2026-09', 'paysheet', 'validated')`);
+    await rows(`insert into people_categories (emp_id, category) values ('900', 'support')`);
+    await rows(`insert into salary_overrides (emp_id, ctc_monthly_inr, reason) values ('1', 120000, 'raise')`);
+    await rows(`insert into revenue_overrides (period, code, amount_usd, reason) values ('2026-09', 'C1', 5000, 'credit note')`);
+    await rows(`insert into snapshots values ('2026-10', 'admin', now(), '{}') on conflict (period, audience) do update set data = excluded.data`);
+    await assert.rejects(rows(`insert into people_categories (emp_id, category) values ('901', 'bogus')`));
+  });
+  await as('boss@aloha.test', async () => {
+    assert.equal((await rows('select * from import_files')).length, 0, 'raw uploads (salaries) are admin-only');
+    assert.equal((await rows('select * from salary_overrides')).length, 0);
+    assert.equal((await rows('select * from people_categories')).length, 0);
+    assert.equal((await rows('select * from dataset_validations')).length, 1);
+    assert.equal((await rows('select * from revenue_overrides')).length, 1);
+    await assert.rejects(rows(`insert into snapshots values ('x', 'admin', now(), '{}')`));
+  });
+  await as('priya@aloha.test', async () => {
+    for (const t of ['import_files', 'dataset_validations', 'customer_validations', 'people_categories', 'revenue_overrides', 'salary_overrides'])
+      assert.equal((await rows(`select * from ${t}`)).length, 0, t);
+    await assert.rejects(rows(`insert into snapshots values ('x', 'pm:priya@aloha.test', now(), '{}')`));
+  });
+  await as(null, async () => {
+    await assert.rejects(rows('select * from import_files'));
+  });
+});
+
+test('no DELETE or UPDATE without WHERE (Supabase rejects them; PGlite does not)', () => {
+  const sql = fs.readFileSync(new URL('./schema.sql', import.meta.url), 'utf8').replace(/--.*$/gm, '');
+  const stmts = sql.split(';').map((s) => s.replace(/\s+/g, ' ').trim());
+  const bad = stmts.filter((s) => /\b(delete from|update)\s+public\.\w+/i.test(s) && !/\bwhere\b/i.test(s) && !/\bon conflict\b/i.test(s));
+  assert.deepEqual(bad, []);
+});

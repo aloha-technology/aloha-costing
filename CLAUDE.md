@@ -104,6 +104,19 @@ Aloha builds IT solutions for small businesses.
 1. Left-nav redesign, terminology, US$ rate + billed seats shown, cost layers — done.
    Step 2 done: customer profiles (PM-readable), rate cards (admin+leadership), Settings with
    standard rates ($3,000 default, AI Engineer $4,000) and 12-month revision; `src/engine/ratecard.js`.
+   Step 3 done: Data & validation page. Monthly exports are uploaded and parsed in Matt's browser
+   (`src/engine/parse.js`, lazy-loaded), stored admin-only (`import_files`), checked
+   (`src/engine/validate.js`), validated per dataset (publishing blocked until all are), payroll-only
+   people classified (`people_categories`), revenue/salary corrections applied on build, then published
+   from the browser (admin may write snapshots). Per-customer sign-off in `customer_validations`.
+   Step 4 done: the app is the source of allocations once Matt switches (Allocations page).
+   Tables people / people_salaries (admin+leadership) / allocations / allocation_history /
+   customer_revenue; PMs change only their own customers via apply_allocation_changes(); live
+   costs via customer_costs() and team_bench() (totals only). Same rules in JS for local mode
+   (`src/engine/live.js`, parity-tested in `supabase/allocations.test.js`). Bench = free time of
+   engineers held by a PM plus a PM's own free time. Publish builds from app allocations
+   (`src/engine/liveSync.js`) and shows the portal export as a cross-check; admin_sync refreshes
+   people, salaries and revenue.
 2. Customer master data (brief, tech, teams, people skills/exp) + rate card (bill vs Aloha standard
    rate, discount % + reason, last revised, due for revision).
 3. Uploads (payroll, billing, allocations) with per-dataset/record validation by Matt; classify the

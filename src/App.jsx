@@ -3,12 +3,13 @@ import Overview from './views/Overview.jsx';
 import Customers from './views/Customers.jsx';
 import Pms from './views/Pms.jsx';
 import Bench from './views/Bench.jsx';
-import DataChecks from './views/DataChecks.jsx';
+import DataValidation, { useImports } from './views/DataValidation.jsx';
 import Actions from './views/Actions.jsx';
 import WhatsApp from './views/WhatsApp.jsx';
 import Login, { ChangePassword } from './views/Login.jsx';
 import People from './views/People.jsx';
 import Play from './views/Play.jsx';
+import Allocations from './views/Allocations.jsx';
 import { Icon, Glossary, BenchBanner } from './views/shell.jsx';
 import { useMaster, Settings } from './views/Master.jsx';
 import { useActions } from './actions/useActions.js';
@@ -34,6 +35,7 @@ const NAV = {
     [
       'Improve',
       [
+        ['allocations', 'Allocations', 'swap', 'Add or remove people and set %, with live COST'],
         ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
         ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
         ['whatsapp', 'WhatsApp', 'chat', 'Weekly digests and alerts for PMs'],
@@ -42,7 +44,7 @@ const NAV = {
     [
       'Data',
       [
-        ['checks', 'Data & validation', 'shield', 'Source files and cross-checks'],
+        ['checks', 'Data & validation', 'shield', 'Upload, validate, classify and correct the monthly data'],
         ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
       ],
     ],
@@ -61,6 +63,7 @@ const NAV = {
     [
       'Improve',
       [
+        ['allocations', 'Allocations', 'swap', 'Who is on which customer, with live COST'],
         ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
         ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
       ],
@@ -68,7 +71,7 @@ const NAV = {
     [
       'Data',
       [
-        ['checks', 'Data & validation', 'shield', 'Source files and cross-checks'],
+        ['checks', 'Data & validation', 'shield', 'Upload, validate, classify and correct the monthly data'],
         ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
       ],
     ],
@@ -78,6 +81,7 @@ const NAV = {
       'My work',
       [
         ['mine', 'My team', 'grid', 'Your customers, COST and bench'],
+        ['allocations', 'Allocations & play', 'swap', 'Add or remove people and set %: try first, then save'],
         ['customers', 'Customers', 'building', 'Your customers'],
         ['bench', 'Bench', 'pause', 'Your bench'],
         ['actions', 'Actions', 'check', 'Actions assigned to you'],
@@ -163,6 +167,8 @@ function Main({ viewer, onSwitch }) {
   const store = useActions(api);
   const comms = useComms(can.edit ? api : null);
   const master = useMaster(api);
+  const imports = useImports(api, can.seeAll);
+  const reloadModel = () => api.loadModel().then(setModel);
   const pmsById = useMemo(() => Object.fromEntries((model?.pms || []).map((p) => [p.id, p])), [model]);
   const go = (t, f = '') => {
     // Links into views a role doesn't have (e.g. a PM clicking a PM name) go home instead.
@@ -176,7 +182,7 @@ function Main({ viewer, onSwitch }) {
   if (error) return <div className="empty">{error}</div>;
   if (!model) return <div className="empty">Loading…</div>;
 
-  const ctx = { model, pmsById, go, focus, setFocus, store, comms, me, can, master };
+  const ctx = { model, pmsById, go, focus, setFocus, store, comms, me, can, master, imports, api, reloadModel };
   const overdue = summarize(store.actions).overdue;
   const closureRequests = store.actions.filter((a) => a.status === 'closure_requested').length;
   const current = items.find(([id]) => id === tab) || items[0];
@@ -251,10 +257,11 @@ function Main({ viewer, onSwitch }) {
           {tab === 'pms' && <Pms {...ctx} />}
           {tab === 'people' && can.seeAll && <People {...ctx} />}
           {tab === 'play' && can.seeAll && <Play {...ctx} />}
+          {tab === 'allocations' && <Allocations {...ctx} />}
           {tab === 'actions' && <Actions {...ctx} />}
           {tab === 'whatsapp' && <WhatsApp {...ctx} />}
           {tab === 'bench' && <Bench {...ctx} />}
-          {tab === 'checks' && <DataChecks {...ctx} />}
+          {tab === 'checks' && <DataValidation {...ctx} />}
           {tab === 'settings' && can.seeAll && <Settings master={master} can={can} key={master.loaded ? 'ready' : 'loading'} />}
         </main>
         {api.mode === 'preview' && (

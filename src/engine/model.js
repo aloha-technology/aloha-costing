@@ -5,7 +5,21 @@ import { findingsForCustomer } from './rules.js';
 
 export const DEFAULT_TARGET = 0.7;
 
-export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Date().toISOString() } = {}) {
+// Options set by Matt in the app (Data & validation), applied on every build:
+//   categories:       { [empId]: 'engineering'|'pm'|'support'|'overhead'|'leaving'|'exclude' }
+//   revenueOverrides: { [billingCode]: { amountUSD, reason } }  replaces the invoiced amount
+//   salaryOverrides:  { [empId]: { ctcMonthlyINR, reason } }    replaces payroll CTC
+export const CATEGORIES = {
+  engineering: 'Engineering',
+  pm: 'Project manager',
+  support: 'Support (HR, Admin, Accounts, MIS…)',
+  overhead: 'Leadership / sales overhead',
+  leaving: 'Leaving / left',
+  exclude: 'Exclude from costing',
+};
+const SHARED = new Set(['support', 'overhead']); // spread across customers by engineering spend
+
+export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Date().toISOString(), categories = {}, revenueOverrides = {}, salaryOverrides = {} } = {}) {
   const need = ['summary', 'employees', 'projects', 'paysheet', 'invoicing'];
   const missing = need.filter((k) => !raw[k]);
   if (missing.length) throw new Error(`Missing exports in inbox: ${missing.join(', ')}`);
@@ -93,6 +107,11 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
   // --- Salaries -------------------------------------------------------------------------
   const pay = new Map();
   for (const p of raw.paysheet.rows) pay.set(empId(p.ID), { name: text(p.NAME), base: num(p['Base Salary']), incentive: num(p['Incentive Amount']), ctc: num(p.CTC) });
+  // Salary corrections entered in the app replace payroll CTC.
+  for (const [id, o] of Object.entries(salaryOverrides || {})) {
+    const cur = pay.get(id) || { name: '', base: 0, incentive: 0, ctc: 0 };
+    pay.set(id, { ...cur, payrollCtc: cur.ctc, ctc: Number(o.ctcMonthlyINR) || 0, corrected: true });
+  }
 
   // --- Allocations: one row per person per project ------------------------------------
   const allocations = [];
@@ -102,10 +121,13 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
     const project = text(e['Allocated Projects']);
     if (!project) continue;
     const sp = subprojects.get(project);
+    // Allocations managed in the app carry their customer and PM explicitly.
+    const explicitCode = code(e['Billing Code']);
+    const explicitOwner = email(e['Owner PM']);
     const id = empId(e.ID);
     const salary = pay.get(id);
     if (!salary) noPay.set(id || text(e.Name), { id, name: text(e.Name), designation: text(e.Designation), project });
-    if (!sp && !isBenchProject(project)) unknownProjects.add(project);
+    if (!sp && !explicitCode && !isBenchProject(project)) unknownProjects.add(project);
     const util = num(e['Project Utilization(%)']);
     allocations.push({
       empId: id,
@@ -116,7 +138,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       skills: text(e['Skill Set']),
       experienceYears: num(e['Year of Experience']) || null,
       project,
-      code: sp ? sp.code : '',
+      code: explicitCode || (sp ? sp.code : ''),
+      ownerExplicit: explicitOwner || null,
       bench: isBenchProject(project),
       suffix: projectSuffix(project),
       utilPct: util,
@@ -143,9 +166,10 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       const sheetCostINR = num(s['Cost INR']);
       const inv = invoicing.get(c) || null;
       const fx = costingRevenueUSD > 0 ? costingRevenueINR / costingRevenueUSD : globalFx;
-      const revenueSource = inv ? 'invoicing' : 'costing';
-      const revenueUSD = inv ? inv.amountUSD : costingRevenueUSD;
-      const revenueINR = inv ? inv.amountUSD * (fx || 0) : costingRevenueINR;
+      const ov = revenueOverrides?.[c];
+      const revenueSource = ov ? 'manual' : inv ? 'invoicing' : 'costing';
+      const revenueUSD = ov ? Number(ov.amountUSD) || 0 : inv ? inv.amountUSD : costingRevenueUSD;
+      const revenueINR = ov || inv ? revenueUSD * (fx || 0) : costingRevenueINR;
       const pmIds = text(s['Project Manager'])
         .split(',')
         .map(text)
@@ -170,7 +194,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         s.seatValueUSD += sp.seats.reduce((a, x) => a + x.count * x.rateUSD, 0);
       }
       for (const p of people) {
-        const s = slot(ownerOf(p.suffix));
+        const s = slot(p.ownerExplicit || ownerOf(p.suffix));
         s.costINR += p.costINR;
         s.people += 1;
       }
@@ -213,7 +237,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         seats: subs.flatMap((sp) => sp.seats.map((x) => ({ ...x, subproject: sp.name }))),
         pmSplit,
         people: people
-          .map(({ empId, name, designation, project, utilPct, billable, ctcMonthlyINR, costINR, suffix, skills, experienceYears }) => ({
+          .map(({ empId, name, designation, project, utilPct, billable, ctcMonthlyINR, costINR, suffix, skills, experienceYears, ownerExplicit }) => ({
             skills,
             experienceYears,
             empId,
@@ -221,7 +245,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
             isPm: pmIdByName.has(name.toLowerCase()),
             designation,
             project,
-            ownerPm: ownerOf(suffix),
+            ownerPm: ownerExplicit || ownerOf(suffix),
             utilPct,
             billable,
             ctcMonthlyINR,
@@ -301,14 +325,22 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
   const SUPPORT_ROLES = new Set(['HR', 'MIS', 'Accounts', 'Admin']);
   const pmNameSet = new Set([...pms.values()].map((p) => p.name.toLowerCase()));
   for (const e of employees) {
-    e.category = SUPPORT_ROLES.has(e.designation) ? 'support' : e.designation === 'Project Manager' || pmNameSet.has(e.name.toLowerCase()) ? 'pm' : 'engineering';
+    e.autoCategory = SUPPORT_ROLES.has(e.designation) ? 'support' : e.designation === 'Project Manager' || pmNameSet.has(e.name.toLowerCase()) ? 'pm' : 'engineering';
+    e.category = categories[e.empId] || e.autoCategory;
   }
   const ctcOf = (e) => e?.ctcMonthlyINR || 0;
-  const supportPool = employees.filter((e) => e.category === 'support').reduce((a, e) => a + (ctcOf(e) * Math.max(0, 100 - e.allocatedPct)) / 100, 0);
+  // People on payroll who aren't in the portal's employee list: Matt classifies them.
+  const payOnly = [...pay.entries()].filter(([id]) => !empMap.has(id)).map(([id, p]) => ({ empId: id, name: p.name, ctcMonthlyINR: p.ctc, category: categories[id] || null }));
+  const unclassified = payOnly.filter((u) => !u.category);
+  const payOnlyIn = (cats) => payOnly.filter((u) => cats.has(u.category)).reduce((a, u) => a + (u.ctcMonthlyINR || 0), 0);
+  const supportPool =
+    employees.filter((e) => SHARED.has(e.category)).reduce((a, e) => a + (ctcOf(e) * Math.max(0, 100 - e.allocatedPct)) / 100, 0) + payOnlyIn(SHARED);
+  const excludedINR =
+    employees.filter((e) => e.category === 'leaving' || e.category === 'exclude').reduce((a, e) => a + (ctcOf(e) * e.idlePct) / 100, 0) + payOnlyIn(new Set(['leaving', 'exclude']));
   // Engineers / PMs with time on no customer and not on bench: paid but not assigned anywhere.
-  const unassignedINR = employees.filter((e) => e.category !== 'support').reduce((a, e) => a + (ctcOf(e) * e.idlePct) / 100, 0);
+  const unassignedINR =
+    employees.filter((e) => e.category === 'engineering' || e.category === 'pm').reduce((a, e) => a + (ctcOf(e) * e.idlePct) / 100, 0) + payOnlyIn(new Set(['engineering', 'pm']));
   // People on payroll who aren't in the portal's employee list: to be classified by Matt.
-  const unclassified = [...pay.entries()].filter(([id]) => !empMap.has(id)).map(([id, p]) => ({ empId: id, name: p.name, ctcMonthlyINR: p.ctc }));
 
   // Bench spend from payroll (CTC x bench %), falling back to the bench file's figure.
   for (const b of bench) {
@@ -422,6 +454,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       engineeringINR: sum(customers, 'costINR') - sum(customers, 'pmSpendINR'),
       pmSpendINR: sum(customers, 'pmSpendINR'),
       supportINR: supportPool,
+      excludedINR,
       unassignedINR,
       benchUnplacedINR,
       unclassifiedPayrollINR: unclassified.reduce((a, u) => a + (u.ctcMonthlyINR || 0), 0),
@@ -439,6 +472,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
     bench,
     employees,
     unclassified,
+    payOnly,
+    corrections: { revenue: Object.keys(revenueOverrides || {}).length, salary: Object.keys(salaryOverrides || {}).length },
     dataQuality: {
       employeesWithoutSalary: [...noPay.values()],
       unknownProjects: [...unknownProjects],
