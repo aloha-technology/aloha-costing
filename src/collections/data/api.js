@@ -84,7 +84,7 @@ export async function cloudColApi(me) {
       return s;
     },
     async directory() {
-      return must(await supabase.rpc('col_invoice_directory')).map((r) => ({ id: r.id, number: r.number, customerId: r.customer_id, customerName: r.customer_name, date: r.date, amount: Number(r.amount), currency: r.currency }));
+      return must(await supabase.rpc('col_invoice_directory')).map((r) => ({ id: r.id, number: r.number, customerId: r.customer_id, customerName: r.customer_name, date: r.date, amount: Number(r.amount), currency: r.currency, status: r.status, paidAt: r.paid_at }));
     },
     async uploadFile(folder, file) {
       const safe = file.name.replace(/[^\w.\- ()]+/g, '_');

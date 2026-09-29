@@ -7,6 +7,7 @@ import { applyAllocations, settledAmount } from './engine/payments.js';
 import { newInvoice } from './engine/importer.js';
 import { allSummaries } from './engine/suggest.js';
 import { today } from './engine/dates.js';
+import { emailsFor } from './engine/contacts.js';
 
 const EMPTY = { customers: [], invoices: [], payments: [], contracts: [], outbox: [], taxInvoices: [], settings: null };
 export const newId = (p) => `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -211,7 +212,7 @@ export function useCollections(api, me) {
       const c = byId.customers[t.customerId] || { name: '', contacts: [] };
       const inv = byId.invoices[t.invoiceId];
       const { subject, body } = fillTemplate(settings.taxInvoice, { customer: c, invoices: inv ? [inv] : [], settings, extra: { taxInvoiceNo: t.taxInvoiceNo || t.fileName.replace(/\.[^.]+$/, '') } });
-      const to = (c.contacts || []).filter((x) => (x.role || 'billing') === 'billing' && x.email).map((x) => x.email);
+      const to = emailsFor(c, 'tax_invoice');
       return { to, cc: (settings.alwaysCc || []).map((x) => (typeof x === 'string' ? x : x.email)).filter(Boolean), subject, body: inv ? body : body.replace(/ against invoice .*? for .*?\./, '.') };
     },
 

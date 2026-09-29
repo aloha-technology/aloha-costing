@@ -4,6 +4,8 @@ import { AgePill, Prio, Act, amt, fmtDate, monthLabel, FileLink, Modal } from '.
 import InvoiceTable from './InvoiceTable.jsx';
 import { ContractForm } from './Contracts.jsx';
 import { addDays } from '../engine/dates.js';
+import { contactsFor, normalizeContact } from '../engine/contacts.js';
+import { ContactsEditor, ContactsList } from './Contacts.jsx';
 
 const FILTERS = [
   ['dues', 'With dues'],
@@ -31,7 +33,7 @@ function CustomerList({ summaries, go, can, ops }) {
           if (q && !`${c.name} ${c.legalName} ${c.billingCode} ${c.pm?.name || ''}`.toLowerCase().includes(q.toLowerCase())) return false;
           if (filter === 'dues') return s.count > 0;
           if (filter === 'unconfirmed') return !c.confirmed;
-          if (filter === 'nocontact') return !(c.contacts || []).some((x) => (x.role || 'billing') === 'billing' && x.email);
+          if (filter === 'nocontact') return !contactsFor(c, 'billing').length;
           if (filter === 'active') return c.active !== false;
           return true;
         })
@@ -79,7 +81,7 @@ function CustomerList({ summaries, go, can, ops }) {
               label: 'Billing contact',
               sort: (r) => (r.customer.contacts || []).length,
               render: (r) => {
-                const b = (r.customer.contacts || []).find((x) => (x.role || 'billing') === 'billing' && x.email);
+                const b = contactsFor(r.customer, 'billing')[0];
                 return b ? <span className="muted">{b.email}</span> : <span className="flag bad">missing</span>;
               },
             },
@@ -268,17 +270,7 @@ function CustomerDetail(ctx) {
             </div>
             <div className="wide" style={{ gridColumn: '1 / -1' }}>
               <div className="k">Contacts</div>
-              {(c.contacts || []).length ? (
-                (c.contacts || []).map((x, i) => (
-                  <div key={i} className="v">
-                    <span className="flag info">{x.role || 'billing'}</span> {x.name} {x.email && <span className="muted">{x.email}</span>}
-                  </div>
-                ))
-              ) : (
-                <div className="v">
-                  <span className="flag bad">No contacts: reminders cannot be sent</span>
-                </div>
-              )}
+              {(c.contacts || []).length ? <ContactsList customer={c} /> : <span className="flag bad">No contacts: reminders cannot be sent</span>}
             </div>
             {c.comment && (
               <div style={{ gridColumn: '1 / -1' }}>
@@ -440,10 +432,9 @@ function CustomerEditor({ c, ops, onClose }) {
     aliasesText: (c.payerAliases || []).join('\n'),
     pmName: c.pm?.name || '',
     pmEmail: c.pm?.email || '',
-    contacts: (c.contacts || []).length ? c.contacts : [{ name: '', email: '', role: 'billing' }],
+    contacts: c.contacts || [],
   });
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const setContact = (i, k, v) => set('contacts', f.contacts.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   const lines = (t) => t.split('\n').map((x) => x.trim()).filter(Boolean);
   const save = async () => {
     const { zohoNamesText, aliasesText, pmName, pmEmail, ...rest } = f;
@@ -452,7 +443,7 @@ function CustomerEditor({ c, ops, onClose }) {
       zohoNames: lines(zohoNamesText).length ? lines(zohoNamesText) : [f.name],
       payerAliases: lines(aliasesText),
       pm: pmEmail.trim() ? { name: pmName.trim() || pmEmail.split('@')[0], email: pmEmail.trim().toLowerCase() } : null,
-      contacts: f.contacts.filter((x) => x.email.trim() || x.name.trim()).map((x) => ({ ...x, email: x.email.trim().toLowerCase(), name: x.name.trim() })),
+      contacts: f.contacts.filter((x) => (x.email || '').trim() || (x.name || '').trim() || (x.phone || '').trim()).map(normalizeContact),
       paymentTermsDays: Number(f.paymentTermsDays) || 15,
     });
     onClose();
@@ -460,27 +451,7 @@ function CustomerEditor({ c, ops, onClose }) {
   return (
     <Modal title={`Edit ${c.name}`} onClose={onClose} wide footer={<Act className="primary" onClick={save}>Save</Act>}>
       <h3 style={{ marginTop: 0 }}>Contacts</h3>
-      <p className="hint" style={{ marginTop: 0 }}>
-        <strong>Billing</strong> get every reminder. <strong>Escalation</strong> (e.g. CFO/owner) are copied from Day 30. <strong>Cc</strong> are copied on every reminder.
-      </p>
-      {f.contacts.map((x, i) => (
-        <div key={i} className="contact-row">
-          <input className="inline-in" placeholder="Name" value={x.name} onChange={(e) => setContact(i, 'name', e.target.value)} />
-          <input className="inline-in" placeholder="email@customer.com" value={x.email} onChange={(e) => setContact(i, 'email', e.target.value)} />
-          <select className="inline-in" value={x.role || 'billing'} onChange={(e) => setContact(i, 'role', e.target.value)}>
-            <option value="billing">Billing (To)</option>
-            <option value="escalation">Escalation (Day 30+)</option>
-            <option value="cc">Cc always</option>
-            <option value="other">Other (not emailed)</option>
-          </select>
-          <button className="linkish" onClick={() => set('contacts', f.contacts.filter((_, j) => j !== i))}>
-            remove
-          </button>
-        </div>
-      ))}
-      <button className="small" onClick={() => set('contacts', [...f.contacts, { name: '', email: '', role: 'billing' }])}>
-        + Add contact
-      </button>
+      <ContactsEditor contacts={f.contacts} onChange={(list) => set('contacts', list)} />
 
       <h3>Aloha side</h3>
       <div className="form-grid">

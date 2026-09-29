@@ -19,6 +19,31 @@ edit here is what Costing and Collections see straight away.
 | Employee details entered by Matt: team, joining date, experience before Aloha, total/skills corrections, phone, location, incentive plan, notes | **`people_profiles`** (new) | Master data; never overwritten by the monthly refresh |
 | PM WhatsApp | `pm_contacts` | Costing WhatsApp digests |
 
+## Contacts: several roles each
+
+A customer contact can have any of these roles, and several people can share one:
+Payment follow-up (To: on reminders) · Receives invoices · Receives tax invoices (sent after payment) ·
+Escalation (copied from Day 30) · Account-management calls · Contract signed by · Cc on reminders.
+The customer page shows who gets invoices, tax invoices and reminders, with a copy button.
+Older contacts with a single role are read as: billing → follow-up + invoices + tax invoices.
+Rules: `src/collections/engine/contacts.js`; one editor for both apps: `src/collections/views/Contacts.jsx`.
+
+## Billing register (Master data → Billing)
+
+Seats and revenue per invoicing line per month, the change from last month with its reason, long/short
+term, and billed seats by resource type (seats × rate, checked against the line). Company view in the
+"Billing Count" format; month view in the "Delta every Month" format; both download to Excel. Each
+customer page shows its billing by month next to what was invoiced in Zoho, and its billing rate per seat.
+
+- Each month: upload the invoicing sheet (Costing → Data & validation), publish, then **Record** the month
+  on the Billing page. Deltas are against last month's recorded lines; term and resource types carry over;
+  re-recording keeps remarks, term and resource types. Lines that stop billing are recorded at zero.
+- History was seeded only from what the sheets say (`npm run billing:seed`): September 2026 line by line
+  (invoicing sheet), every change Oct-25 to Aug-26 with its reason ("Delta every Month"), and company
+  totals Apr-26 to Aug-26 (delta sheet summary rows and "Billing Count"). Earlier months show changes only.
+  Seat history was not reconstructed: working back from September overshot reported totals by ~90 seats.
+- Stored in `billing_records` (admin writes, leadership reads). Engine: `src/master/billing.js`.
+
 ## How values are combined
 
 - **Employees:** the HR export and payroll are the base; what Matt enters wins and is labelled
@@ -41,7 +66,8 @@ Campaigns (log a reach-out to one or many customers, results per campaign) · St
 ## Going live
 
 Supabase SQL Editor: run `supabase/schema.sql` (people directory no longer readable by the accounts team),
-then `supabase/master.sql`. Base salary and incentive per person appear after the next publish from
+`supabase/collections.sql` (invoice directory shows paid invoices to the accounts team), then
+`supabase/master.sql` (employee details, billing register). Base salary and incentive per person appear after the next publish from
 Data & validation (the model now carries them; PMs never receive them, checked by `views.test.js`).
 
 Code: `src/master/` (engine.js is pure and tested in `engine.test.js`), `scripts/masterdata-api.js` (local

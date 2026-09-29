@@ -3,6 +3,9 @@ import { Table } from '../views/ui.jsx';
 import { RateCardCard, ProfileCard, ReviewTag } from '../views/Master.jsx';
 import { Act, Modal, amt, fmtDate } from '../collections/views/parts.jsx';
 import { projectCodesOf } from './engine.js';
+import { accountBilling, monthName } from './billing.js';
+import { ContactsEditor, ContactsList } from '../collections/views/Contacts.jsx';
+import { normalizeContact } from '../collections/engine/contacts.js';
 
 const pct = (x) => (x == null ? '—' : `${(x * 100).toFixed(1)}%`);
 const FILTERS = [
@@ -144,6 +147,7 @@ function AccountDetail(ctx) {
   const [linkCode, setLinkCode] = useState('');
   const setCodes = (codes) => ops.saveAccount({ ...a, projectCodes: codes, billingCode: codes.join(', ') });
   const sd = a.specialDiscount;
+  const bill = accountBilling(ctx.billing || [], { codes: projectCodesOf(a), names: [a.name, ...(a.zohoNames || [])], invoices: ctx.invoices || [], accountId: a.id });
   return (
     <>
       <button className="back" onClick={() => go('customers')}>
@@ -170,6 +174,11 @@ function AccountDetail(ctx) {
           <div className="kpi-note">
             {v.seats} billed seats · {v.assigned} people assigned · {v.projects.length} project{v.projects.length === 1 ? '' : 's'}
           </div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Billing rate</div>
+          <div className="kpi-value">{bill.ratePerSeat ? `${amt(bill.ratePerSeat)}/seat` : '—'}</div>
+          <div className="kpi-note">{bill.latest ? `${monthName(bill.latest.period)}: ${bill.latest.seats} seats, ${amt(bill.latest.amountUSD)}` : 'no month recorded'}</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Rates vs Aloha standard</div>
@@ -201,32 +210,7 @@ function AccountDetail(ctx) {
               </button>
             )}
           </div>
-          {(a.contacts || []).length ? (
-            <div className="table-wrap">
-              <table>
-                <tbody>
-                  {a.contacts.map((c, i) => (
-                    <tr key={i}>
-                      <td className="wrap-cell">
-                        <strong>{c.name || '—'}</strong>
-                        <span className="sub">{c.title || ''}</span>
-                      </td>
-                      <td className="wrap-cell">
-                        {c.email || <span className="muted">no email</span>}
-                        <span className="sub">{c.phone || 'no phone'}</span>
-                      </td>
-                      <td>
-                        <span className="flag info">{{ billing: 'Billing', escalation: 'Escalation', cc: 'Cc', other: 'Other' }[c.role || 'billing']}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="muted">No contacts yet.</div>
-          )}
-          <p className="hint" style={{ marginBottom: 0 }}>Billing contacts get Collections reminders; escalation contacts are copied from Day 30.</p>
+          <ContactsList customer={a} />
         </div>
         <div className="card">
           <div className="title-row" style={{ marginBottom: 6 }}>
@@ -324,6 +308,8 @@ function AccountDetail(ctx) {
         ))}
       </div>
 
+      <BillingHistory bill={bill} />
+
       <div className="card">
         <div className="title-row" style={{ marginBottom: 6 }}>
           <h2 style={{ margin: 0 }}>Campaign reach-outs</h2>
@@ -363,49 +349,89 @@ function AccountDetail(ctx) {
   );
 }
 
+function BillingHistory({ bill }) {
+  const signed = (x, f = (v) => v) => (x == null ? '—' : x > 0 ? `+${f(x)}` : x < 0 ? `−${f(-x)}` : '0');
+  const months = bill.months.slice(0, 18);
+  return (
+    <div className="card">
+      <h2>Billing by month</h2>
+      {!months.length ? (
+        <div className="muted">Nothing billed yet.</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th className="r">Seats</th>
+                <th className="r">Δ seats</th>
+                <th className="r">Billing</th>
+                <th className="r">Δ billing</th>
+                <th className="r">Invoiced in Zoho</th>
+                <th>Resource types · reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {months.map((m) => (
+                <tr key={m.period}>
+                  <td>{monthName(m.period)}</td>
+                  <td className="r">{m.seats ?? '—'}</td>
+                  <td className="r">{m.seats == null ? '' : signed(m.seatDelta)}</td>
+                  <td className="r">{m.amountUSD == null ? '—' : amt(m.amountUSD)}</td>
+                  <td className="r">{m.amountUSD == null ? '' : signed(m.amountDelta, amt)}</td>
+                  <td className="r">{m.invoicedUSD == null ? '—' : amt(m.invoicedUSD)}</td>
+                  <td className="wrap-cell muted">
+                    {m.lines
+                      .map((l) => [(l.byRole || []).map((r) => `${r.seats} ${r.role}`).join(', '), l.remarks].filter(Boolean).join(' · '))
+                      .filter(Boolean)
+                      .join(' | ')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {bill.changes.length > 0 && (
+        <>
+          <h3>Changes logged</h3>
+          <ul className="activity">
+            {bill.changes.slice(0, 20).map((c) => (
+              <li key={c.id}>
+                <span className="when">
+                  {monthName(c.period)} · {c.name}
+                </span>
+                <div>
+                  {c.seatDelta != null && `${signed(c.seatDelta)} seats`}
+                  {c.amountDelta != null && ` · ${signed(c.amountDelta, amt)}`} {c.remarks && <span className="muted">· {c.remarks}</span>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="hint" style={{ marginBottom: 0 }}>Seats and billing come from the monthly invoicing sheet (Billing page); “Invoiced in Zoho” is what was actually invoiced that month.</p>
+    </div>
+  );
+}
+
 export const OUTCOMES = ['Sent', 'Replied', 'Interested', 'Meeting booked', 'Won', 'Not interested', 'No response'];
 export const OUTCOME_TONE = { Won: 'good', 'Meeting booked': 'good', Interested: 'good', Replied: 'info', Sent: '', 'No response': 'warn', 'Not interested': 'bad' };
 
 function PocEditor({ a, ops, onClose }) {
-  const [list, setList] = useState(() => ((a.contacts || []).length ? a.contacts : [{ name: '', email: '', phone: '', title: '', role: 'billing' }]));
-  const set = (i, k, val) => setList(list.map((c, j) => (j === i ? { ...c, [k]: val } : c)));
+  const [list, setList] = useState(() => a.contacts || []);
   return (
     <Modal
       title={`Points of contact: ${a.name}`}
       wide
       onClose={onClose}
       footer={
-        <Act
-          className="primary"
-          onClick={async () => {
-            await ops.saveAccount({ ...a, contacts: list.filter((c) => c.name.trim() || (c.email || '').trim() || (c.phone || '').trim()).map((c) => ({ ...c, email: (c.email || '').trim().toLowerCase(), name: c.name.trim(), phone: (c.phone || '').trim() })) });
-            onClose();
-          }}
-        >
+        <Act className="primary" onClick={async () => (await ops.saveAccount({ ...a, contacts: list.filter((c) => (c.name || '').trim() || (c.email || '').trim() || (c.phone || '').trim()).map(normalizeContact) }), onClose())}>
           Save
         </Act>
       }
     >
-      {list.map((c, i) => (
-        <div key={i} className="contact-row" style={{ gridTemplateColumns: '1.1fr 1fr 1.5fr 1fr 1fr auto' }}>
-          <input className="inline-in" placeholder="Name" value={c.name} onChange={(e) => set(i, 'name', e.target.value)} />
-          <input className="inline-in" placeholder="Title (e.g. AP, CFO)" value={c.title || ''} onChange={(e) => set(i, 'title', e.target.value)} />
-          <input className="inline-in" placeholder="email@customer.com" value={c.email || ''} onChange={(e) => set(i, 'email', e.target.value)} />
-          <input className="inline-in" placeholder="+1 555 …" value={c.phone || ''} onChange={(e) => set(i, 'phone', e.target.value)} />
-          <select className="inline-in" value={c.role || 'billing'} onChange={(e) => set(i, 'role', e.target.value)}>
-            <option value="billing">Billing</option>
-            <option value="escalation">Escalation</option>
-            <option value="cc">Cc always</option>
-            <option value="other">Other (not emailed)</option>
-          </select>
-          <button className="linkish" onClick={() => setList(list.filter((_, j) => j !== i))}>
-            remove
-          </button>
-        </div>
-      ))}
-      <button className="small" onClick={() => setList([...list, { name: '', email: '', phone: '', title: '', role: 'billing' }])}>
-        + Add contact
-      </button>
+      <ContactsEditor contacts={list} onChange={setList} />
     </Modal>
   );
 }

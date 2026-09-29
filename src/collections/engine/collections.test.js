@@ -218,3 +218,43 @@ test('Sid pivot: billing month totals, void and bad debt left out, month range',
   assert.equal(dumpStatus(inv({ status: 'void', zohoStatus: 'True Void' }), '2026-09-20'), 'True Void');
   assert.equal(excelSerial('2025-12-31'), 46022);
 });
+
+test('contacts: several roles each, old single-role records still work', async () => {
+  const { rolesOf, emailsFor, normalizeContact } = await import('./contacts.js');
+  const c = {
+    contacts: [
+      { name: 'Old', email: 'OLD@x.test', role: 'billing' },
+      { name: 'Ana', email: 'ana@x.test', roles: ['invoice', 'am'] },
+      { name: 'Raj', email: 'raj@x.test', roles: ['tax_invoice', 'signer'] },
+      { name: 'Cfo', email: 'cfo@x.test', role: 'escalation' },
+      { name: 'NoMail', roles: ['invoice'] },
+    ],
+  };
+  assert.deepEqual(rolesOf(c.contacts[0]), ['billing', 'invoice', 'tax_invoice']);
+  assert.deepEqual(emailsFor(c, 'billing'), ['old@x.test']);
+  assert.deepEqual(emailsFor(c, 'invoice'), ['old@x.test', 'ana@x.test']);
+  assert.deepEqual(emailsFor(c, 'tax_invoice'), ['old@x.test', 'raj@x.test']);
+  assert.deepEqual(emailsFor(c, 'escalation'), ['cfo@x.test']);
+  // Tax invoices fall back to invoice recipients when nobody is marked for them.
+  assert.deepEqual(emailsFor({ contacts: [{ email: 'a@x.test', roles: ['invoice'] }] }, 'tax_invoice'), ['a@x.test']);
+  const n = normalizeContact({ name: ' Old ', email: ' OLD@x.test', role: 'escalation' });
+  assert.deepEqual(n, { name: 'Old', email: 'old@x.test', phone: '', title: '', roles: ['escalation'] });
+  // Reminders: an AM-call-only contact is not emailed.
+  const q = customerQueue({ ...cust(), contacts: [{ email: 'am@x.test', roles: ['am'] }] }, [inv()], S, '2026-09-17');
+  assert.equal(q.blocked.reason, 'no-contact');
+});
+
+test('tax invoices: due after payment, not before; rejected ones still due', async () => {
+  const { taxInvoicesDue, unpaidWarning } = await import('./taxinvoices.js');
+  const invs = [
+    inv({ id: 'p1', number: 'P1', status: 'paid', balance: 0, paidAt: '2026-09-20' }),
+    inv({ id: 'p2', number: 'P2', status: 'paid', balance: 0, paidAt: '2026-09-25' }),
+    inv({ id: 'p3', number: 'P3', status: 'paid', balance: 0, paidAt: '2026-01-01' }), // outside the window
+    inv({ id: 'p4', number: 'P4', status: 'paid', balance: 0 }), // history, paid date unknown
+    inv({ id: 'o1', number: 'O1' }),
+  ];
+  const tax = [{ invoiceId: 'p1', status: 'sent' }, { invoiceId: 'p2', status: 'rejected' }];
+  assert.deepEqual(taxInvoicesDue(invs, tax, '2026-09-29').map((i) => i.id), ['p2']);
+  assert.match(unpaidWarning(invs[4]), /not fully paid/);
+  assert.equal(unpaidWarning(invs[0]), null);
+});

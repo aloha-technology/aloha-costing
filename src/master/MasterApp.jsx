@@ -13,10 +13,12 @@ import MasterOverview from './Overview.jsx';
 import MasterCustomers from './Customers.jsx';
 import { Employees, Pms } from './People.jsx';
 import Campaigns from './Campaigns.jsx';
+import Billing from './Billing.jsx';
 
 const ALL = {
   overview: ['Overview', 'grid', 'How complete the foundation is, and what to fill in next'],
   customers: ['Customers', 'building', 'Accounts, POCs, projects, rates, discounts, revision dates'],
+  billing: ['Billing', 'sliders', 'Seats and revenue by month, changes and reasons, resource types'],
   employees: ['Employees', 'user', 'Team, skills, experience at Aloha and before, pay'],
   pms: ['PMs', 'users', 'Experience, team size and billing per PM'],
   campaigns: ['Campaigns', 'chat', 'Special reach-outs to customers'],
@@ -24,7 +26,7 @@ const ALL = {
 };
 const NAV = [
   ['Overview', ['overview']],
-  ['Foundation', ['customers', 'employees', 'pms']],
+  ['Foundation', ['customers', 'billing', 'employees', 'pms']],
   ['Reach-out', ['campaigns']],
   ['Settings', ['settings']],
 ];
@@ -44,13 +46,14 @@ function useFoundation(viewer, colApi) {
     try {
       const mdApi = await masterDataApi(me);
       setMd(mdApi);
-      const [model, col, profiles, contacts] = await Promise.all([
+      const [model, col, profiles, contacts, billing] = await Promise.all([
         api.loadModel(),
         colApi.load(),
         mdApi.listPeopleProfiles().catch(() => ({})),
         me.role === 'admin' ? api.listContacts().catch(() => ({})) : Promise.resolve({}),
+        mdApi.listBilling().catch(() => []),
       ]);
-      setState({ loading: false, model, accounts: col.customers || [], profiles, contacts });
+      setState({ loading: false, model, accounts: col.customers || [], invoices: col.invoices || [], profiles, contacts, billing });
     } catch (e) {
       setState({ loading: false, error: e.message });
     }
@@ -73,6 +76,11 @@ function useFoundation(viewer, colApi) {
     async saveProfiles(rows) {
       const saved = await md.savePeopleProfiles(rows);
       setState((s) => ({ ...s, profiles: { ...s.profiles, ...Object.fromEntries(saved.map((r) => [r.emp_id, r])) } }));
+    },
+    async saveBilling(docs) {
+      const saved = await md.saveBilling(docs);
+      const byId = Object.fromEntries(saved.map((x) => [x.id, x]));
+      setState((s) => ({ ...s, billing: [...s.billing.filter((x) => !byId[x.id]), ...saved] }));
     },
     async saveContact(pmId, c) {
       const saved = await api.saveContact(pmId, c);
@@ -108,7 +116,7 @@ export default function MasterApp({ viewer, colApi, switches }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const h = `#${MASTER_PREFIX}${tab}${focus ? '/' + encodeURIComponent(focus) : ''}`;
-    if (location.hash !== h) history.replaceState(null, '', h + location.search);
+    if (location.hash !== h) history.replaceState(null, '', location.pathname + location.search + h);
   }, [tab, focus]);
   const go = (t, fc = '') => {
     setRoute({ tab: tabs.includes(t) ? t : 'overview', focus: fc });
@@ -127,7 +135,9 @@ export default function MasterApp({ viewer, colApi, switches }) {
     const accounts = f.accounts.map((a) => accountView(a, { projectsByCode, master: f.master, settings: f.master.settings, on, pmsById }));
     const pms = pmViews(model, employeesById, f.profiles, f.contacts, { on });
     const unlinked = unlinkedProjects(f.accounts, model.customers || []);
-    return { projectsByCode, pmsById, employees, accounts, pms, unlinked, completeness: completeness(accounts, employees) };
+    // Resource types for the billing split: Aloha standard roles plus the ones on project rate cards.
+    const roleOptions = [...new Set([...Object.keys(f.master.settings?.standardRates?.roles || {}), ...(model.customers || []).flatMap((c) => (c.seats || []).map((s) => s.role))])].filter(Boolean).sort();
+    return { projectsByCode, pmsById, employees, accounts, pms, unlinked, roleOptions, completeness: completeness(accounts, employees) };
   }, [f.model, f.accounts, f.profiles, f.contacts, f.master, on]);
 
   const can = { edit: me.role === 'admin' && colApi.mode !== 'preview' && viewer.api.mode !== 'preview' };
@@ -191,6 +201,7 @@ export default function MasterApp({ viewer, colApi, switches }) {
             <>
               {tab === 'overview' && <MasterOverview {...ctx} />}
               {tab === 'customers' && <MasterCustomers {...ctx} />}
+              {tab === 'billing' && <Billing {...ctx} />}
               {tab === 'employees' && <Employees {...ctx} />}
               {tab === 'pms' && <Pms {...ctx} />}
               {tab === 'campaigns' && <Campaigns {...ctx} />}

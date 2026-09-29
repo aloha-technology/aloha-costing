@@ -6,12 +6,13 @@ import { Act, AgePill, amt, fmtDate, Modal } from './parts.jsx';
 import { parseInvoiceRows, diffImport, slug } from '../engine/importer.js';
 import { ageDays, overdueDays, isOpen } from '../engine/aging.js';
 import { monthOf } from '../engine/dates.js';
+import { contactsFor } from '../engine/contacts.js';
 
 export default function Setup(ctx) {
   const { data, summaries, go, ops } = ctx;
   const withDues = summaries.filter((s) => s.count > 0);
   const unconfirmed = withDues.filter((s) => !s.customer.confirmed);
-  const noContact = withDues.filter((s) => !(s.customer.contacts || []).some((x) => (x.role || 'billing') === 'billing' && x.email));
+  const noContact = withDues.filter((s) => !contactsFor(s.customer, 'billing').length);
   const noPm = withDues.filter((s) => !s.customer.pm?.email);
   const openUnconf = data.invoices.filter((i) => isOpen(i) && !i.confirmed);
   const last = data.settings?.lastImport;
@@ -58,7 +59,7 @@ export default function Setup(ctx) {
                   .sort((a, b) => b.balance - a.balance)
                   .map((s) => {
                     const c = s.customer;
-                    const billing = (c.contacts || []).find((x) => (x.role || 'billing') === 'billing' && x.email);
+                    const billing = contactsFor(c, 'billing')[0];
                     return (
                       <tr key={c.id}>
                         <td className="wrap-cell">

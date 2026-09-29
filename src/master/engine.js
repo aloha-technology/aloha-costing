@@ -3,6 +3,7 @@
 // data wins, and every merged field says where it came from so gaps are visible.
 import { rateCard } from '../engine/ratecard.js';
 import { nameTokens } from '../collections/engine/payments.js';
+import { contactsFor, hasRole } from '../collections/engine/contacts.js';
 
 const YEAR = 365.25 * 86400000;
 const round1 = (n) => (n == null || !Number.isFinite(n) ? null : Math.round(n * 10) / 10);
@@ -125,7 +126,11 @@ export function accountView(account, { projectsByCode, master = {}, settings, on
     specialDiscount: account.specialDiscount || null,
     nextRevision: dated[0] ? { date: dated[0].dueDate, status: dated[0].status, project: dated[0].name } : null,
     revisionStatus: dated.some((r) => r.status === 'due') ? 'due' : dated.some((r) => r.status === 'soon') ? 'soon' : reviews.length && dated.length === reviews.length ? 'ok' : reviews.length ? 'unknown' : null,
-    billingContact: contacts.find((c) => (c.role || 'billing') === 'billing' && c.email) || null,
+    billingContact: contactsFor(account, 'billing')[0] || null,
+    invoiceTo: contactsFor(account, 'invoice'),
+    taxInvoiceTo: contactsFor(account, 'tax_invoice'),
+    amContact: contacts.find((c) => hasRole(c, 'am')) || null,
+    signer: contacts.find((c) => hasRole(c, 'signer')) || null,
     campaigns: account.campaigns || [],
   };
   v.missing = [

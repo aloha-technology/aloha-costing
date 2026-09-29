@@ -80,8 +80,21 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
   const amountKey = invKeys.find((k) => / Amount$/.test(k) && !/^Diff/i.test(k));
   const countKey = amountKey ? amountKey.replace(/ Amount$/, '') : null;
   const invoicing = new Map();
+  // Every invoicing row as-is, for the monthly billing register in Master data (admin + leadership).
+  const invoicingLines = [];
   for (const inv of raw.invoicing.rows) {
     const c = code(inv['Project Code']);
+    if (text(inv['Customer Name'])) {
+      invoicingLines.push({
+        name: text(inv['Customer Name']),
+        code: c || '',
+        pmEmail: email(inv.PM) || '',
+        seats: num(inv[countKey]),
+        amountUSD: num(inv[amountKey]),
+        diffSeats: num(inv['Diff. of Count Sep & Aug'] ?? findDiff(inv, 'Count')),
+        diffAmountUSD: num(inv['Diff. of Amount Sep & Aug'] ?? findDiff(inv, 'Amount')),
+      });
+    }
     if (!c) continue;
     const cur = invoicing.get(c) || { amountUSD: 0, seats: 0, diffAmountUSD: 0, diffSeats: 0, lines: [], owner: email(inv.PM) };
     cur.amountUSD += num(inv[amountKey]);
@@ -476,6 +489,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
     employees,
     unclassified,
     payOnly,
+    invoicingLines,
     corrections: { revenue: Object.keys(revenueOverrides || {}).length, salary: Object.keys(salaryOverrides || {}).length },
     dataQuality: {
       employeesWithoutSalary: [...noPay.values()],

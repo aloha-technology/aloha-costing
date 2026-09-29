@@ -66,3 +66,12 @@ test('people directory: staff roles yes, accounts team no', async () => {
   await as('acc@aloha.test', async () => assert.equal((await rows('select * from people')).length, 0));
   await as(null, async () => assert.ok(await fails(db.query('select * from people_profiles'))));
 });
+
+test('billing register: admin writes, leadership reads, PMs and accounts see nothing', async () => {
+  await as('matt@aloha.test', async () => db.query(`insert into billing_records (id, data) values ('line|2026-09|P1', '{"seats": 3}')`));
+  await as('boss@aloha.test', async () => {
+    assert.equal((await rows('select * from billing_records')).length, 1);
+    assert.ok(await fails(db.query(`insert into billing_records (id, data) values ('x', '{}')`)));
+  });
+  for (const who of ['priya@aloha.test', 'acc@aloha.test']) await as(who, async () => assert.equal((await rows('select * from billing_records')).length, 0, who));
+});

@@ -26,7 +26,9 @@ The database enforces this (`supabase/collections.sql`, tested by `supabase/coll
 - **Payments**: date, currency paid, amount received, bank charges, FX rate, bank reference.
   The payer name from the bank is checked against the customer name in the contract; a mismatch
   needs a note. Split across invoices (oldest first by default). A fully paid invoice stops its reminders.
-- **Tax invoices**: accounts upload PDFs (auto-matched to the invoice by file name). Matt opens each one,
+- **Tax invoices**: sent after payment. Invoices paid in the last 120 days without a tax invoice are listed
+  for the accounts team ("Paid: tax invoice needed") and for Matt; sending one for an unpaid invoice warns.
+  They go to contacts marked "Receives tax invoices" (else invoice recipients, else follow-up). Accounts upload PDFs (auto-matched to the invoice by file name). Matt opens each one,
   marks it Checked or sends it back with a note, then sends it to the customer with the PDF attached.
 - **Contracts**: repository per customer (file, type, legal name, term, payment terms), with
   expiry warnings and a list of active customers without a contract.

@@ -79,7 +79,7 @@ export function localStore(dir) {
       const names = Object.fromEntries(customers.map((c) => [c.id, c.name]));
       return invoices
         .filter((i) => i.status !== 'void')
-        .map((i) => ({ id: i.id, number: i.number, customerId: i.customerId, customerName: names[i.customerId] || i.customerId, date: i.date, amount: i.amount, currency: i.currency }));
+        .map((i) => ({ id: i.id, number: i.number, customerId: i.customerId, customerName: names[i.customerId] || i.customerId, date: i.date, amount: i.amount, currency: i.currency, status: i.status, paidAt: i.paidAt || null }));
     },
   };
   return api;

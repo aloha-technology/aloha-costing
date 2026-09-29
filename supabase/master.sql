@@ -36,3 +36,19 @@ revoke all on public.people_profiles from anon;
 drop policy if exists people_read on public.people;
 create policy people_read on public.people for select to authenticated
   using (coalesce(public.my_role() in ('admin', 'leadership', 'pm'), false));
+
+-- Monthly billing register: one row per invoicing line per month, logged changes (with reasons)
+-- and company totals as reported. id = "line|YYYY-MM|key", "change|YYYY-MM|key", "month|YYYY-MM".
+create table if not exists public.billing_records (
+  id text primary key,
+  data jsonb not null,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+alter table public.billing_records enable row level security;
+drop policy if exists billing_records_read on public.billing_records;
+create policy billing_records_read on public.billing_records for select to authenticated using (public.can_see_all());
+drop policy if exists billing_records_write on public.billing_records;
+create policy billing_records_write on public.billing_records for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+revoke all on public.billing_records from anon;

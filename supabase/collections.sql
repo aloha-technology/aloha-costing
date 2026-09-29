@@ -80,12 +80,15 @@ create policy col_tax_accounts_update on public.col_tax_invoices for update to a
   with check (public.is_accounts() and uploaded_by = public.my_email() and data ->> 'status' = 'uploaded');
 revoke all on public.col_tax_invoices from anon;
 
--- What the accounts team needs to match a file to an invoice: no balances, notes or contacts.
+-- What the accounts team needs to match a file to an invoice, and which invoices are paid (tax
+-- invoices go out after payment): no balances, notes or contacts.
+drop function if exists public.col_invoice_directory();
 create or replace function public.col_invoice_directory()
-returns table (id text, number text, customer_id text, customer_name text, date text, amount numeric, currency text)
+returns table (id text, number text, customer_id text, customer_name text, date text, amount numeric, currency text, status text, paid_at text)
 language sql stable security definer set search_path = public as $$
   select i.id, i.data ->> 'number', i.data ->> 'customerId', coalesce(c.data ->> 'name', i.data ->> 'customerId'),
-         i.data ->> 'date', (i.data ->> 'amount')::numeric, coalesce(i.data ->> 'currency', 'USD')
+         i.data ->> 'date', (i.data ->> 'amount')::numeric, coalesce(i.data ->> 'currency', 'USD'),
+         coalesce(i.data ->> 'status', 'open'), i.data ->> 'paidAt'
   from public.col_invoices i left join public.col_customers c on c.id = i.data ->> 'customerId'
   where (public.can_see_all() or public.is_accounts())
     and coalesce(i.data ->> 'status', 'open') <> 'void'

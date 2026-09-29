@@ -4,7 +4,7 @@ import { DEFAULT_STAGES } from '../engine/settings.js';
 import { fillTemplate } from '../engine/reminders.js';
 
 const SAMPLE = {
-  customer: { name: 'Sample Customer Inc', pm: { name: 'Priya (PM)' }, contacts: [{ name: 'Dana Smith', email: 'ap@sample.com', role: 'billing' }] },
+  customer: { name: 'Sample Customer Inc', pm: { name: 'Priya (PM)' }, contacts: [{ name: 'Dana Smith', email: 'ap@sample.com', roles: ['billing', 'invoice', 'tax_invoice'] }] },
   invoices: [{ number: 'APTE -12345', date: '2026-09-01', dueDate: '2026-09-16', balance: 6000, currency: 'USD' }],
 };
 

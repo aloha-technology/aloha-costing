@@ -114,3 +114,9 @@ pre.mail { white-space: pre-wrap; font: 13px/1.55 var(--font); background: var(-
 .chip.stale strong { color: var(--warn); }
 .app-switches { margin: 0 0 6px; }
 .app-switches .app-switch + .app-switch { margin-top: 4px; }
+.contact-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+.contact-card .contact-row { margin-bottom: 6px; }
+.role-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.role-chip { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 999px; padding: 2px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.role-chip.on { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 600; }
+.send-to { margin-top: 10px; font-size: 13px; display: grid; gap: 3px; word-break: break-word; }

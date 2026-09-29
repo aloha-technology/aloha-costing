@@ -170,7 +170,7 @@ function Main({ viewer, switches }) {
 
   useEffect(() => {
     const h = `#${tab}${focus ? '/' + encodeURIComponent(focus) : ''}`;
-    if (location.hash !== h) history.replaceState(null, '', h + location.search);
+    if (location.hash !== h) history.replaceState(null, '', location.pathname + location.search + h);
   }, [tab, focus]);
 
   const store = useActions(api);

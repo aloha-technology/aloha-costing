@@ -99,6 +99,11 @@ Aloha builds IT solutions for small businesses.
 - Billed seats come from the invoicing sheet (`customer.invoicing.seats`); the portal's resource list is
   "people assigned" (it counts non-billable people too, so never use it as billed seats).
 - The accounts role must not read `people` (policy in schema.sql / master.sql).
+- Contacts have `roles` (billing = payment follow-up, invoice, tax_invoice, escalation, am, signer, cc); legacy
+  single `role` is read via `rolesOf()` in `src/collections/engine/contacts.js`. Always use contactsFor/emailsFor.
+- Tax invoices are sent after payment: `taxInvoicesDue()` lists paid invoices without one (Matt + accounts).
+- Billing register (`billing_records`, Master data → Billing): monthly lines from `model.invoicingLines`, logged
+  changes and reported company totals. Never reconstruct seat history backwards from deltas (it overshoots).
 
 ## Terminology (Aloha internal) — use everywhere in the UI
 - **COST** = actual **profit %** = (revenue − spend) / revenue. Target 70%. Never label it "margin".

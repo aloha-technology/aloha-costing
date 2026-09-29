@@ -10,6 +10,7 @@
 import { ageDays, overdueDays, isOpen } from './aging.js';
 import { addDays, daysBetween, fmtDate } from './dates.js';
 import { money, round2 } from './money.js';
+import { contactsFor } from './contacts.js';
 
 const done = (inv, key) => (inv.reminders || []).some((r) => r.stage === key);
 
@@ -34,7 +35,7 @@ export function invoiceStage(inv, settings, on) {
   return { state: 'due', stage: latest, next, nextOn, days: basisDays };
 }
 
-const contactsOf = (customer, role) => (customer.contacts || []).filter((c) => c.email && (c.role || 'billing') === role);
+const contactsOf = contactsFor;
 const emails = (list) => [...new Set(list.map((c) => (c.email || '').trim().toLowerCase()).filter(Boolean))];
 
 export function lastReminderOn(invoices) {

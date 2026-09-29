@@ -80,7 +80,7 @@ export default function CollectionsApp({ viewer, api, switches }) {
   }, [tabs]);
   useEffect(() => {
     const h = `#${COL_PREFIX}${tab}${focus ? '/' + encodeURIComponent(focus) : ''}`;
-    if (location.hash !== h) history.replaceState(null, '', h + location.search);
+    if (location.hash !== h) history.replaceState(null, '', location.pathname + location.search + h);
   }, [tab, focus]);
 
   const go = (t, f = '') => {

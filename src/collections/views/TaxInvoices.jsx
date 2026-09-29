@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Act, EmailEditor, Modal, mailtoHref, amt, fmtDate, FileLink } from './parts.jsx';
 import { invoiceKey } from '../engine/importer.js';
+import { taxInvoicesDue, unpaidWarning } from '../engine/taxinvoices.js';
+import { today } from '../engine/dates.js';
 
 // Best invoice for a file name: the longest invoice number contained in it.
 export function matchFile(name, directory) {
@@ -30,7 +32,7 @@ function useDirectory(api) {
   return dir;
 }
 
-function Uploader({ api, ops, directory, onDone, replace }) {
+function Uploader({ api, ops, directory, onDone, replace, preset }) {
   const [files, setFiles] = useState([]);
   const [over, setOver] = useState(false);
   const input = useRef(null);
@@ -38,7 +40,7 @@ function Uploader({ api, ops, directory, onDone, replace }) {
     setFiles((cur) => [
       ...cur,
       ...[...list].map((file) => {
-        const m = replace ? directory.find((d) => d.id === replace.invoiceId) : matchFile(file.name, directory);
+        const m = replace ? directory.find((d) => d.id === replace.invoiceId) : preset ? directory.find((d) => d.id === preset) : matchFile(file.name, directory);
         return { file, invoiceId: m?.id || '', taxInvoiceNo: replace?.taxInvoiceNo || file.name.replace(/\.[^.]+$/, ''), status: '' };
       }),
     ]);
@@ -123,6 +125,43 @@ function Uploader({ api, ops, directory, onDone, replace }) {
   );
 }
 
+function DueList({ due, onUpload, extra }) {
+  if (!due.length) return <div className="empty small">Every paid invoice has a tax invoice.</div>;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Customer</th>
+            <th className="r">Amount</th>
+            <th>Paid on</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {due.map((d) => (
+            <tr key={d.id}>
+              <td>{d.number}</td>
+              <td className="wrap-cell">{d.customerName}</td>
+              <td className="r">{amt(d.amount, d.currency)}</td>
+              <td>{fmtDate(d.paidAt)}</td>
+              <td>
+                {onUpload && (
+                  <button className="small" onClick={() => onUpload(d)}>
+                    Upload tax invoice
+                  </button>
+                )}
+                {extra?.(d)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function AccountsPortal(ctx) {
   const { api, ops, data, reload } = ctx;
   const directory = useDirectory(api);
@@ -130,11 +169,22 @@ function AccountsPortal(ctx) {
   const dirById = Object.fromEntries(directory.map((d) => [d.id, d]));
   const mine = [...data.taxInvoices].sort((a, b) => (b.uploadedAt || '').localeCompare(a.uploadedAt || ''));
   const rejected = mine.filter((t) => t.status === 'rejected');
+  const due = taxInvoicesDue(directory, data.taxInvoices, today());
+  const [presetFor, setPresetFor] = useState(null);
   return (
     <>
       <div className="infobox">
-        Upload the tax invoices you have issued. Matt checks each one and sends it to the customer. If something needs fixing, it comes back here with a note.
+        Tax invoices go out after the customer pays. Upload the tax invoice for each paid invoice below; Matt checks it and sends it to the customer. If something needs fixing, it comes back here with a note.
       </div>
+      <div className="card">
+        <h2>Paid: tax invoice needed ({due.length})</h2>
+        <DueList due={due} onUpload={setPresetFor} />
+      </div>
+      {presetFor && (
+        <Modal title={`Tax invoice for ${presetFor.number} · ${presetFor.customerName}`} onClose={() => setPresetFor(null)}>
+          <Uploader api={api} ops={ops} directory={directory} preset={presetFor.id} onDone={() => (reload(), setPresetFor(null))} />
+        </Modal>
+      )}
       <div className="card">
         <h2>Upload</h2>
         <Uploader api={api} ops={ops} directory={directory} onDone={reload} />
@@ -229,6 +279,7 @@ function MattQueue(ctx) {
     for (const i of data.invoices) if (!m[i.id]) m[i.id] = { id: i.id, number: i.number, customerId: i.customerId, customerName: byId.customers[i.customerId]?.name, date: i.date, amount: i.amount, currency: i.currency };
     return m;
   }, [directory, data.invoices, byId]);
+  const due = useMemo(() => taxInvoicesDue(data.invoices, data.taxInvoices, today()).map((i) => ({ ...i, customerName: byId.customers[i.customerId]?.name || i.customerId })), [data.invoices, data.taxInvoices, byId]);
   const [tab, setTab] = useState('uploaded');
   const [rejecting, setRejecting] = useState(null);
   const [sending, setSending] = useState(null);
@@ -286,6 +337,9 @@ function MattQueue(ctx) {
     <>
       <div className="toolbar">
         <div className="tabs" style={{ marginBottom: 0, borderBottom: 0 }}>
+          <button className={tab === 'due' ? 'on' : ''} onClick={() => setTab('due')}>
+            Paid, awaiting tax invoice {due.length > 0 && <span className="badge good">{due.length}</span>}
+          </button>
           {Object.entries(STATUS).map(([k, [label]]) => (
             <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
               {label} {counts[k] > 0 && <span className={`badge ${k === 'uploaded' ? '' : 'good'}`}>{counts[k]}</span>}
@@ -301,7 +355,14 @@ function MattQueue(ctx) {
       </div>
       <div className="card">
         {tab === 'uploaded' && <p className="hint" style={{ marginTop: 0 }}>Open each PDF and check customer, invoice number, amount and tax details before marking it checked. Amounts and tax details are never edited here.</p>}
-        <TaxTable list={list} dirById={dirById} api={api} actions={actions} />
+        {tab === 'due' ? (
+          <>
+            <p className="hint" style={{ marginTop: 0 }}>Invoices paid in the last 120 days (recorded here or closed by a Zoho import) that have no tax invoice yet. The accounts team sees the same list.</p>
+            <DueList due={due} />
+          </>
+        ) : (
+          <TaxTable list={list} dirById={dirById} api={api} actions={actions} />
+        )}
       </div>
       {rejecting && <RejectDialog t={rejecting} ops={ops} onClose={() => setRejecting(null)} />}
       {sending && <SendTax t={sending} ctx={ctx} onClose={() => setSending(null)} />}
@@ -362,7 +423,8 @@ function SendTax({ t, ctx, onClose }) {
         </>
       }
     >
-      {!draft.to.length && <div className="warnbox" style={{ marginBottom: 10 }}>This customer has no billing contact. Add one on the customer page, or type the address below.</div>}
+      {unpaidWarning(byId.invoices[t.invoiceId]) && <div className="warnbox" style={{ marginBottom: 10 }}>{unpaidWarning(byId.invoices[t.invoiceId])}</div>}
+      {!draft.to.length && <div className="warnbox" style={{ marginBottom: 10 }}>Nobody is set to receive tax invoices for this customer. Tick “Receives tax invoices” on their contacts, or type the address below.</div>}
       <EmailEditor draft={draft} onChange={setDraft} />
     </Modal>
   );

@@ -87,7 +87,7 @@ test('accounts: directory only, no customer or payment data', async () => {
     const dir = await rows('select * from col_invoice_directory()');
     assert.equal(dir.length, 1);
     assert.equal(dir[0].customer_name, 'Acme Inc');
-    assert.deepEqual(Object.keys(dir[0]).sort(), ['amount', 'currency', 'customer_id', 'customer_name', 'date', 'id', 'number']);
+    assert.deepEqual(Object.keys(dir[0]).sort(), ['amount', 'currency', 'customer_id', 'customer_name', 'date', 'id', 'number', 'paid_at', 'status']);
   });
 });
 
