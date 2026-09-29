@@ -50,17 +50,44 @@ export default function DataChecks({ model, go }) {
       </section>
 
       <section className="card">
-        <h2>Cost reconciliation</h2>
+        <h2>Payroll coverage</h2>
         <p>
-          Paysheet CTC × allocation gives <strong>{inr(t.computedCostINR)}</strong> against <strong>{inr(t.costINR)}</strong> on the costing sheet (
-          {pct(t.computedCostINR / t.costINR - 1)} difference). Margins use the costing sheet; the paysheet explains who drives the cost.
+          Payroll this month: <strong>{inr(t.payrollINR)}</strong>. Of that, spend on customers (engineering + PMs) is{' '}
+          <strong>{inr(t.costINR)}</strong>, bench <strong>{inr(t.benchCostINR)}</strong>, support (HR, Admin, Accounts, MIS){' '}
+          <strong>{inr(t.supportINR)}</strong>. Not in any layer yet: <strong>{inr(t.unassignedINR)}</strong> of engineers' and PMs' time not assigned to a
+          customer or bench, and <strong>{inr(t.unclassifiedPayrollINR)}</strong> for {t.unclassifiedPeople} people on payroll who aren't in the portal's
+          employee list.
         </p>
-        <h3>Customers more than 15% off ({offRecon.length})</h3>
+        <h3>On payroll, not in the employee list ({model.unclassified?.length || 0})</h3>
+        <p className="muted small-text">
+          These need a category (support, leadership/sales, leaving, other) before their cost can be placed. Classification comes with data validation (next
+          step).
+        </p>
+        <Table
+          columns={[
+            { key: 'empId', label: 'ID' },
+            { key: 'name', label: 'Name', render: (u) => <strong>{u.name}</strong> },
+            { key: 'ctcMonthlyINR', label: 'Monthly CTC', align: 'right', render: (u) => inr(u.ctcMonthlyINR, { compact: false }) },
+          ]}
+          rows={model.unclassified || []}
+          initialSort={{ key: 'ctcMonthlyINR', dir: 'desc' }}
+          rowKey={(u) => u.empId}
+        />
+      </section>
+
+      <section className="card">
+        <h2>Spend cross-check: payroll vs costing sheet</h2>
+        <p>
+          Spend in this app is payroll CTC × allocation: <strong>{inr(t.computedCostINR)}</strong>. The portal's costing sheet shows{' '}
+          <strong>{inr(t.sheetCostINR)}</strong> ({pct(t.computedCostINR / t.sheetCostINR - 1)} difference, usually because the paysheet is from a different
+          month or includes incentives).
+        </p>
+        <h3>Customers more than 15% apart ({offRecon.length})</h3>
         <Table
           columns={[
             { key: 'name', label: 'Customer', render: (c) => <strong>{c.name}</strong> },
-            { key: 'costINR', label: 'Costing sheet', align: 'right', render: (c) => inr(c.costINR) },
-            { key: 'computedCostINR', label: 'Paysheet estimate', align: 'right', render: (c) => inr(c.computedCostINR) },
+            { key: 'computedCostINR', label: 'Payroll spend', align: 'right', render: (c) => inr(c.computedCostINR) },
+            { key: 'sheetCostINR', label: 'Costing sheet', align: 'right', render: (c) => inr(c.sheetCostINR) },
             { key: 'reconciliation', label: 'Ratio', align: 'right', render: (c) => c.reconciliation.toFixed(2) },
           ]}
           rows={offRecon}

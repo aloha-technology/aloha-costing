@@ -31,17 +31,17 @@ export function weeklyDigest(pm, model, actions, { on = today(), maxCustomers = 
 
   const L = [];
   L.push(`*Weekly cost review · ${pm.name}*`);
-  L.push(`_${model.period} data · target margin ${Math.round(target * 100)}%_`);
+  L.push(`_${model.period} data · COST target ${Math.round(target * 100)}%_`);
   L.push('');
   L.push(`Hi ${firstName(pm)}, here is where your accounts stand this week.`);
   L.push('');
-  L.push(`*Customers:* ${mine.length} · *Below ${Math.round(target * 100)}%:* ${below.length}`);
+  L.push(`*Customers:* ${mine.length} · *Not managed (below ${Math.round(target * 100)}%):* ${below.length}`);
 
   if (below.length) {
     L.push('');
-    L.push('*Below target* (biggest gap first)');
+    L.push('*Not managed* (most cost off by first)');
     for (const c of below.slice(0, maxCustomers)) {
-      L.push(`• ${c.name}: ${pct(c.margin)}${c.gapINR > 0 ? `, gap ${lakh(c.gapINR)}/month` : ''}`);
+      L.push(`• ${c.name}: COST ${pct(c.margin)}${c.gapINR > 0 ? `, cost off by ${lakh(c.gapINR)}/month` : ''}`);
     }
     if (below.length > maxCustomers) L.push(`• +${below.length - maxCustomers} more`);
   }

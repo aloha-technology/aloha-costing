@@ -20,7 +20,7 @@ test('digest groups actions by urgency and asks for a reply', () => {
   const actions = [mk('Release 1 QA', '2026-09-25'), mk('Rate review', '2026-10-02'), mk('Consolidate', '2026-10-20')];
   const d = weeklyDigest(pm, model, actions, { on: '2026-09-28' });
   assert.match(d.text, /Weekly cost review · Priya Nair/);
-  assert.match(d.text, /Acme: 60\.0%, gap ₹2\.50 L\/month/);
+  assert.match(d.text, /Acme: COST 60\.0%, cost off by ₹2\.50 L\/month/);
   assert.doesNotMatch(d.text, /Beta/);
   assert.match(d.text, /Overdue \(1\)\*\n1\. Acme: Release 1 QA \(due 25 Sep, 3 days late\)/);
   assert.match(d.text, /Due this week \(1\)/);

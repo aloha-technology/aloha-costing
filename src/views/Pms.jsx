@@ -1,6 +1,6 @@
 import React from 'react';
 import { inr, pct } from '../format.js';
-import { Kpi, Margin, Severity, Table } from './ui.jsx';
+import { Kpi, Margin, Severity, Table, Status, Layers } from './ui.jsx';
 import { SEVERITY_ORDER } from '../engine/rules.js';
 import { FindingAction, BulkCreate, StatusChip } from './ActionParts.jsx';
 import { isClosed } from '../actions/logic.js';
@@ -11,19 +11,18 @@ export default function Pms({ model, pmsById, focus, setFocus, go, store, can, m
   if (!pm) {
     return (
       <section className="card">
-        <p className="muted">Revenue and cost per PM are estimated: cost from the people on each PM's projects, revenue from their share of seats on shared customers.</p>
+        <p className="muted small-text">Team figures are estimates: spend from the people on each PM's projects, revenue from their share of seats on shared customers. COST is measured on project spend; the last columns add the team's own bench.</p>
         <Table
           columns={[
-            { key: 'name', label: 'PM', render: (p) => <strong>{p.name}</strong> },
-            { key: 'email', label: 'Email', render: (p) => p.email || '—' },
+            { key: 'name', label: 'Team (PM)', render: (p) => <strong>{p.name}</strong> },
             { key: 'customers', label: 'Customers', align: 'right' },
-            { key: 'belowTarget', label: 'Below target', align: 'right' },
-            { key: 'estRevenueINR', label: 'Est. revenue ₹', align: 'right', render: (p) => (p.customers ? inr(p.estRevenueINR) : '—') },
-            { key: 'estCostINR', label: 'Est. cost ₹', align: 'right', render: (p) => (p.customers ? inr(p.estCostINR) : '—') },
-            { key: 'estMargin', label: 'Est. margin', align: 'right', render: (p) => <Margin value={p.estMargin} target={target} />, sort: (p) => p.estMargin ?? -1 },
-            { key: 'gapINR', label: 'Share of gap', align: 'right', render: (p) => inr(p.gapINR) },
+            { key: 'managed', label: 'Managed', align: 'right', render: (p) => `${p.customers - p.belowTarget} / ${p.customers}`, sort: (p) => p.customers - p.belowTarget },
+            { key: 'estRevenueINR', label: 'Est. revenue', align: 'right', render: (p) => (p.customers ? inr(p.estRevenueINR) : '—') },
+            { key: 'estCostINR', label: 'Project spend', align: 'right', render: (p) => (p.customers ? inr(p.estCostINR) : '—') },
+            { key: 'estMargin', label: 'COST', align: 'right', render: (p) => <Margin value={p.estMargin} target={target} />, sort: (p) => p.estMargin ?? -1 },
+            { key: 'gapINR', label: 'Cost off by', align: 'right', render: (p) => inr(p.gapINR) },
             { key: 'benchCostINR', label: 'Bench', align: 'right', render: (p) => (p.benchPeople ? `${p.benchPeople} · ${inr(p.benchCostINR)}` : '—') },
-            { key: 'source', label: 'Listed in', render: (p) => (p.source === 'invoicing' ? 'Invoicing' : 'Costing sheet only') },
+            { key: 'withBench', label: 'COST with bench', align: 'right', render: (p) => <Margin value={p.teamLayers?.withOwnBench?.cost} target={target} />, sort: (p) => p.teamLayers?.withOwnBench?.cost ?? -9 },
           ]}
           rows={model.pms}
           initialSort={{ key: 'gapINR', dir: 'desc' }}
@@ -45,7 +44,7 @@ export default function Pms({ model, pmsById, focus, setFocus, go, store, can, m
     <>
       {me.role !== 'pm' && (
         <button className="back" onClick={() => setFocus('')}>
-          ← All PMs
+          ← All teams
         </button>
       )}
       <div className="title-row">
@@ -65,10 +64,24 @@ export default function Pms({ model, pmsById, focus, setFocus, go, store, can, m
       </div>
       <section className="kpis">
         <Kpi label="Customers" value={pm.customers} note={`${pm.accountOwnerOf.length} as account owner`} />
-        <Kpi label="Below target" value={pm.belowTarget} tone={pm.belowTarget ? 'warn' : ''} />
-        <Kpi label="Est. margin" value={pct(pm.estMargin)} tone={pm.estMargin >= target ? 'good' : 'bad'} />
-        <Kpi label="Share of gap" value={inr(pm.gapINR)} tone={pm.gapINR ? 'bad' : ''} />
-        <Kpi label="Bench" value={pm.benchPeople} note={can.seeAll ? inr(pm.benchCostINR) : 'people'} />
+        <Kpi label="Managed" value={`${pm.customers - pm.belowTarget} / ${pm.customers}`} note={`${pm.belowTarget} not managed`} tone={pm.belowTarget ? 'warn' : 'good'} />
+        <Kpi label="COST (profit)" value={pct(pm.estMargin)} note={`target ${pct(target, 0)}`} tone={pm.estMargin >= target ? 'good' : 'bad'} />
+        <Kpi label="Cost off by" value={inr(pm.gapINR)} tone={pm.gapINR ? 'bad' : 'good'} />
+        <Kpi label="Bench" value={`${pm.benchPeople} people`} note={`${inr(pm.benchCostINR)}/month`} tone={pm.benchPeople ? 'warn' : ''} />
+      </section>
+
+      <section className="card">
+        <h2>Team spend layers</h2>
+        <Layers
+          layers={pm.teamLayers}
+          target={target}
+          revenueINR={pm.estRevenueINR}
+          names={[
+            ['project', 'Project (eng + PMs)'],
+            ['withOwnBench', "+ Team's own bench"],
+            ['full', '+ Bench & support shares'],
+          ]}
+        />
       </section>
 
       {myActions.length > 0 && (
@@ -120,10 +133,10 @@ export default function Pms({ model, pmsById, focus, setFocus, go, store, can, m
           columns={[
             { key: 'name', label: 'Customer', render: (c) => <strong>{c.name}</strong> },
             { key: 'revenueINR', label: 'Revenue ₹', align: 'right', render: (c) => inr(c.revenueINR) },
-            { key: 'margin', label: 'Margin', align: 'right', render: (c) => <Margin value={c.margin} target={target} />, sort: (c) => c.margin ?? -1 },
-            { key: 'gapINR', label: 'Gap / month', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
+            { key: 'margin', label: 'COST', align: 'right', render: (c) => <Margin value={c.margin} target={target} />, sort: (c) => c.margin ?? -1 },
+            { key: 'gapINR', label: 'Cost off by', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
             can.seeAll
-              ? { key: 'share', label: 'Their share of cost', align: 'right', render: (c) => pct(c.pmSplit.find((s) => s.pmId === pm.id)?.costShare ?? 0), sort: (c) => c.pmSplit.find((s) => s.pmId === pm.id)?.costShare ?? 0 }
+              ? { key: 'share', label: 'Their share of spend', align: 'right', render: (c) => pct(c.pmSplit.find((s) => s.pmId === pm.id)?.costShare ?? 0), sort: (c) => c.pmSplit.find((s) => s.pmId === pm.id)?.costShare ?? 0 }
               : { key: 'share', label: 'Their people', align: 'right', render: (c) => c.pmSplit.find((s) => s.pmId === pm.id)?.people ?? 0, sort: (c) => c.pmSplit.find((s) => s.pmId === pm.id)?.people ?? 0 },
             { key: 'others', label: 'Other PMs', render: (c) => c.pmIds.filter((id) => id !== pm.id).map((id) => pmsById[id]?.name.split(' ')[0]).join(', ') },
           ]}

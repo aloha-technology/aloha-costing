@@ -34,14 +34,14 @@ export function findingsForCustomer(c, { target }) {
     add({
       kind: 'BELOW_TARGET',
       severity: c.margin < 0.5 ? 'critical' : c.margin < 0.6 ? 'high' : 'medium',
-      title: `Margin ${pct(c.margin)} vs ${pct(target)} target`,
-      detail: `Cost is ${inr(c.gapINR)}${c.gapUSD != null ? ` (${usd(c.gapUSD)})` : ''} a month above the ${pct(1 - target)} cost line.`,
-      pmText: `${c.name} is at ${pct(c.margin)} margin against the ${pct(target)} target.`,
+      title: `COST ${pct(c.margin)} vs ${pct(target)} target`,
+      detail: `Spend is ${inr(c.gapINR)}${c.gapUSD != null ? ` (${usd(c.gapUSD)})` : ''} a month above the ${pct(1 - target)} spend limit.`,
+      pmText: `${c.name} is at ${pct(c.margin)} COST (profit) against the ${pct(target)} target.`,
       action:
-        `Cut monthly cost by ${inr(c.gapINR)}` +
+        `Cut monthly spend by ${inr(c.gapINR)}` +
         (upliftUSD != null ? `, or raise billing by about ${usd(upliftUSD)} a month, to reach ${pct(target)}.` : '.'),
       savingINR: c.gapINR,
-      ask: `Bring margin to ${pct(target)}: cut ${inr(c.gapINR)}/month` + (upliftUSD != null ? ` or raise billing ~${usd(upliftUSD)}/month` : ''),
+      ask: `Bring COST to ${pct(target)}: cut ${inr(c.gapINR)}/month` + (upliftUSD != null ? ` or raise billing ~${usd(upliftUSD)}/month` : ''),
     });
   }
 
@@ -57,7 +57,7 @@ export function findingsForCustomer(c, { target }) {
       detail:
         `${inr(cost)} a month (${pct(share)} of cost): ` +
         nonBillable.map((p) => `${p.name} (${p.designation}, ${p.utilPct}%)`).join(', ') +
-        `. Billing or releasing them would take margin to ${pct(marginWith(cost) ?? 0)}.`,
+        `. Billing or releasing them would take COST to ${pct(marginWith(cost) ?? 0)}.`,
       pmText:
         `Non-billable on ${c.name}: ` +
         nonBillable.map((p) => `${p.name} (${p.designation}, ${p.utilPct}%)`).join(', ') +

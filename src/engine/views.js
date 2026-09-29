@@ -2,17 +2,18 @@
 // Whitelist, not blacklist: only fields named here leave Matt's machine, so a new
 // salary-level field added to the model later can't leak by accident.
 //
-// PMs get: their customers' revenue, total cost, margin and gap; who is on the account
-// (role, time, billable) but no one's CTC or cost; PM-safe finding text; their bench
-// people without cost. No company totals, no data-quality lists.
+// PMs get: their customers' revenue, spend (by layer), COST % and cost-off-by; their team's
+// totals incl. bench spend; who is on the account (role, time, billable) but no one's CTC or
+// per-person cost; PM-safe finding text; their bench people without cost. Aggregates are exact
+// (Matt's decision, 2026-09-29); individual salaries/costs are never included.
 
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
 
-const CUSTOMER_KEYS = ['code', 'name', 'pmIds', 'accountPm', 'revenueUSD', 'revenueINR', 'revenueSource', 'costingRevenueUSD', 'revenueDiffUSD', 'costINR', 'fx', 'margin', 'belowTarget', 'gapINR', 'gapUSD', 'billable', 'allocated'];
+const CUSTOMER_KEYS = ['code', 'name', 'pmIds', 'accountPm', 'revenueUSD', 'revenueINR', 'revenueSource', 'costingRevenueUSD', 'revenueDiffUSD', 'costINR', 'costBasis', 'fx', 'margin', 'belowTarget', 'managed', 'gapINR', 'gapUSD', 'billable', 'allocated', 'layers', 'pmSpendINR', 'benchShareINR', 'supportShareINR'];
 const PERSON_KEYS = ['empId', 'name', 'designation', 'project', 'ownerPm', 'utilPct', 'billable', 'isPm'];
 const SEAT_KEYS = ['role', 'count', 'rateUSD', 'subproject'];
 const FINDING_KEYS = ['id', 'kind', 'severity', 'title', 'pmText', 'ask', 'action', 'ownerPmIds'];
-const PM_SELF_KEYS = ['id', 'name', 'email', 'source', 'customerCodes', 'accountOwnerOf', 'customers', 'belowTarget', 'criticalFindings', 'estRevenueINR', 'estCostINR', 'estMargin', 'gapINR', 'benchPeople'];
+const PM_SELF_KEYS = ['id', 'name', 'email', 'source', 'customerCodes', 'accountOwnerOf', 'customers', 'belowTarget', 'criticalFindings', 'estRevenueINR', 'estCostINR', 'estMargin', 'gapINR', 'benchPeople', 'benchCostINR', 'teamLayers'];
 const BENCH_KEYS = ['empId', 'name', 'designation', 'pmId', 'pmName', 'allocPct', 'experienceYears', 'skills', 'relievingDate'];
 
 export function pmView(model, pmId) {
@@ -29,7 +30,7 @@ export function pmView(model, pmId) {
     }));
 
   const self = model.pms.find((p) => p.id === pmId);
-  const pms = model.pms.map((p) => (p.id === pmId ? { ...pick(p, PM_SELF_KEYS), benchCostINR: 0 } : { id: p.id, name: p.name, customers: 0 }));
+  const pms = model.pms.map((p) => (p.id === pmId ? pick(p, PM_SELF_KEYS) : { id: p.id, name: p.name, customers: 0 }));
 
   return {
     audience: `pm:${pmId}`,

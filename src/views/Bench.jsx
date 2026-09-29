@@ -16,7 +16,7 @@ export default function Bench({ model, can }) {
       <section className="kpis">
         <Kpi label="People on bench" value={t.benchPeople} />
         <Kpi label="Bench cost / month" value={inr(t.benchCostINR)} tone="warn" />
-        <Kpi label="Margin after bench" value={pct(t.marginAfterBench)} note={`vs ${pct(t.margin)} before`} tone={t.marginAfterBench < model.target ? 'bad' : 'good'} />
+        <Kpi label="COST after bench" value={pct(t.marginAfterBench)} note={`vs ${pct(t.margin)} before`} tone={t.marginAfterBench < model.target ? 'bad' : 'good'} />
         <Kpi label="Confirmed relieving" value={leaving.length} note={inr(leaving.reduce((a, b) => a + b.costINR, 0)) + ' / month'} />
       </section>
       )}

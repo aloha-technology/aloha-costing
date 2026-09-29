@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { inr, usd, pct } from '../format.js';
-import { Kpi, Margin, Severity, Table } from './ui.jsx';
+import { Kpi, Margin, Severity, Table, Status, Layers } from './ui.jsx';
 import { FindingAction } from './ActionParts.jsx';
 
 export default function Customers({ model, pmsById, focus, setFocus, store, go, can }) {
@@ -29,12 +29,14 @@ function CustomerList({ model, pmsById, open }) {
   const pmNames = (c) => c.pmIds.map((id) => pmsById[id]?.name.split(' ')[0]).join(', ');
   const columns = [
     { key: 'name', label: 'Customer', render: (c) => <strong>{c.name}</strong> },
-    { key: 'pms', label: 'PMs', render: pmNames, sort: pmNames },
+    { key: 'pms', label: 'Team', render: pmNames, sort: pmNames },
+    { key: 'billedSeats', label: 'Seats billed', align: 'right', render: (c) => fmtSeats(c.invoicing?.seats), sort: (c) => c.invoicing?.seats || 0 },
     { key: 'revenueUSD', label: 'Revenue $', align: 'right', render: (c) => usd(c.revenueUSD) },
     { key: 'revenueINR', label: 'Revenue ₹', align: 'right', render: (c) => inr(c.revenueINR) },
-    { key: 'costINR', label: 'Cost', align: 'right', render: (c) => inr(c.costINR) },
-    { key: 'margin', label: 'Margin', align: 'right', render: (c) => <Margin value={c.margin} target={target} />, sort: (c) => c.margin ?? -1 },
-    { key: 'gapINR', label: 'Gap / month', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
+    { key: 'costINR', label: 'Spend', align: 'right', render: (c) => inr(c.costINR) },
+    { key: 'margin', label: 'COST', align: 'right', render: (c) => <Margin value={c.margin} target={target} />, sort: (c) => c.margin ?? -1 },
+    { key: 'managed', label: 'Status', render: (c) => <Status managed={!c.belowTarget} />, sort: (c) => (c.belowTarget ? 0 : 1) },
+    { key: 'gapINR', label: 'Cost off by', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
     { key: 'seats', label: 'Billed / allocated', align: 'right', render: (c) => `${c.billable} / ${c.allocated}`, sort: (c) => c.allocated - c.billable },
     {
       key: 'findings',
@@ -56,7 +58,7 @@ function CustomerList({ model, pmsById, open }) {
       <div className="toolbar">
         <input placeholder="Search customers" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={pm} onChange={(e) => setPm(e.target.value)}>
-          <option value="">All PMs</option>
+          <option value="">All teams</option>
           {[...model.pms]
             .filter((p) => p.customers)
             .sort((a, b) => a.name.localeCompare(b.name))
@@ -67,7 +69,7 @@ function CustomerList({ model, pmsById, open }) {
             ))}
         </select>
         <label>
-          <input type="checkbox" checked={onlyBelow} onChange={(e) => setOnlyBelow(e.target.checked)} /> Below target only
+          <input type="checkbox" checked={onlyBelow} onChange={(e) => setOnlyBelow(e.target.checked)} /> Not managed only
         </label>
         <span className="muted">{rows.length} customers</span>
       </div>
@@ -95,8 +97,9 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
       </button>
       <div className="title-row">
         <h2>{c.name}</h2>
+        <Status managed={!c.belowTarget} />
         <span className="muted">
-          {c.code} · account PM {pmsById[c.accountPm]?.name || '—'}
+          {c.code} · account PM {pmsById[c.accountPm]?.name || '—'} · team {c.pmIds.map((id) => pmsById[id]?.name.split(' ')[0]).join(', ')}
         </span>
       </div>
 
@@ -104,20 +107,29 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
         <Kpi
           label={c.revenueSource === 'invoicing' ? 'Revenue (invoiced)' : 'Revenue (costing sheet)'}
           value={usd(c.revenueUSD)}
-          note={`${inr(c.revenueINR)}${Math.abs(c.revenueDiffUSD || 0) > 1 ? ` · costing sheet ${usd(c.costingRevenueUSD)}` : ''}`}
+          note={`${inr(c.revenueINR)} at ₹${(c.fx || model.fx).toFixed(2)}/US$${Math.abs(c.revenueDiffUSD || 0) > 1 ? ` · costing sheet ${usd(c.costingRevenueUSD)}` : ''}`}
           tone={Math.abs(c.revenueDiffUSD || 0) > 1 ? 'warn' : ''}
         />
-        <Kpi label="Cost" value={inr(c.costINR)} note={can.seeAll ? `paysheet estimate ${inr(c.computedCostINR)}` : `${pct(c.costINR / c.revenueINR)} of revenue`} />
-        <Kpi label="Margin" value={c.margin == null ? 'no revenue' : pct(c.margin)} note={`target ${pct(target, 0)}`} tone={c.belowTarget ? 'bad' : 'good'} />
-        <Kpi label="Gap / month" value={c.gapINR > 0 ? inr(c.gapINR) : '—'} note={c.gapUSD ? usd(c.gapUSD) : ''} tone={c.gapINR > 0 ? 'bad' : ''} />
-        <Kpi label="Billed / allocated" value={`${c.billable} / ${c.allocated}`} note={can.seeAll ? `non-billable cost ${inr(nonBillableCost)}` : ''} />
+        <Kpi label="Project spend" value={inr(c.costINR)} note={can.seeAll && c.sheetCostINR ? `costing sheet ${inr(c.sheetCostINR)}` : `${pct(c.costINR / c.revenueINR)} of revenue`} />
+        <Kpi label="COST (profit)" value={c.margin == null ? 'no revenue' : pct(c.margin)} note={`target ${pct(target, 0)}`} tone={c.belowTarget ? 'bad' : 'good'} />
+        <Kpi label="Cost off by" value={c.gapINR > 0 ? inr(c.gapINR) : '—'} note={c.gapUSD ? `${usd(c.gapUSD)} a month` : 'within the spend limit'} tone={c.gapINR > 0 ? 'bad' : 'good'} />
+        <Kpi label="Billed / allocated" value={`${c.billable} / ${c.allocated}`} note={can.seeAll ? `non-billable spend ${inr(nonBillableCost)}` : ''} />
         {c.invoicing && (
           <Kpi
-            label="Invoiced this month"
-            value={usd(c.invoicing.amountUSD)}
-            note={`${c.invoicing.seats} seats · ${c.invoicing.diffAmountUSD >= 0 ? '+' : ''}${usd(c.invoicing.diffAmountUSD)} vs last month`}
+            label={`Billing · ${model.period}`}
+            value={`${fmtSeats(c.invoicing.seats)} ${c.invoicing.seats === 1 ? "seat" : "seats"}`}
+            note={`${usd(c.invoicing.amountUSD)} invoiced · ${c.invoicing.diffAmountUSD >= 0 ? '+' : ''}${usd(c.invoicing.diffAmountUSD)} vs last month`}
           />
         )}
+      </section>
+
+      <section className="card">
+        <h2>Spend layers</h2>
+        <Layers layers={c.layers} target={target} revenueINR={c.revenueINR} />
+        <p className="muted small-text" style={{ marginBottom: 0 }}>
+          Engineering {inr(c.layers?.engineering.spendINR || 0)} · PMs {inr(c.pmSpendINR || 0)} · bench share {inr(c.benchShareINR || 0)} (the team's bench, split
+          across their customers) · support share {inr(c.supportShareINR || 0)} (split by engineering spend).
+        </p>
       </section>
 
       <section className="card">
@@ -147,7 +159,7 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
             columns={[
               { key: 'pm', label: 'PM', render: (s) => pmsById[s.pmId]?.name, sort: (s) => pmsById[s.pmId]?.name },
               { key: 'people', label: 'People', align: 'right' },
-              ...(can.seeAll ? [{ key: 'costShare', label: 'Share of cost', align: 'right', render: (s) => pct(s.costShare) }] : []),
+              ...(can.seeAll ? [{ key: 'costShare', label: 'Share of spend', align: 'right', render: (s) => pct(s.costShare) }] : []),
               { key: 'revenueShare', label: 'Est. share of revenue', align: 'right', render: (s) => pct(s.revenueShare) },
               { key: 'subprojects', label: 'Projects', render: (s) => s.subprojects.join(', ') },
             ]}
@@ -171,7 +183,7 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
             ...(can.seeAll
               ? [
                   { key: 'ctcMonthlyINR', label: 'Monthly CTC', align: 'right', render: (p) => (p.ctcMonthlyINR == null ? 'not on paysheet' : inr(p.ctcMonthlyINR, { compact: false })) },
-                  { key: 'costINR', label: 'Cost here', align: 'right', render: (p) => inr(p.costINR, { compact: false }) },
+                  { key: 'costINR', label: 'Spend here', align: 'right', render: (p) => inr(p.costINR, { compact: false }) },
                   { key: 'share', label: '% of revenue', align: 'right', render: (p) => (c.revenueINR ? pct(p.costINR / c.revenueINR) : '—'), sort: (p) => p.costINR },
                 ]
               : []),
@@ -199,3 +211,5 @@ function CustomerDetail({ c, model, pmsById, store, go, can, back }) {
     </>
   );
 }
+
+const fmtSeats = (n) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(2));

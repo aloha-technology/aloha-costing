@@ -75,6 +75,26 @@ Aloha builds IT solutions for small businesses.
   and drops them in `data/inbox/` (git-ignored, confidential). Treat Zoho and QB rows as
   possibly overlapping; match on invoice number + client before merging.
 
+## Terminology (Aloha internal) — use everywhere in the UI
+- **COST** = actual **profit %** = (revenue − spend) / revenue. Target 70%. Never label it "margin".
+- **Spend** = rupees for people's time (CTC × allocation). **Managed** = COST ≥ 70% on project spend
+  (engineering + PMs); **Not managed** otherwise. **Cost off by** = spend above the 30% limit.
+- Spend layers: engineering → + PMs (project) → + bench share (PM's bench split by their project
+  spend) → + support share (HR/Admin/Accounts/MIS, split by engineering spend).
+- Spend basis is **payroll** (CTC × allocation) since 2026-09-29; costing-sheet cost is a cross-check.
+- PMs see exact aggregate ₹ (Matt's decision 2026-09-29), which lets them infer a person's cost by
+  trying changes; per-person salary/cost is still never sent to PMs.
+
+## Roadmap agreed 2026-09-29 (step by step)
+1. Left-nav redesign, terminology, US$ rate + billed seats shown, cost layers — done.
+2. Customer master data (brief, tech, teams, people skills/exp) + rate card (bill vs Aloha standard
+   rate, discount % + reason, last revised, due for revision).
+3. Uploads (payroll, billing, allocations) with per-dataset/record validation by Matt; classify the
+   payroll people missing from the employee list.
+4. The app becomes the source of allocations: PMs add/remove people and set % on their customers
+   (audited); PM scenario play computed server-side; bench impact always visible to PMs.
+5. Migrate, review, invite PMs.
+
 ## Conventions
 - Commit email for this repo: matt@alohatechnology.com (set in repo-local git config).
 - Secrets live in `.env` files (git-ignored); never commit them or copy them from other projects.

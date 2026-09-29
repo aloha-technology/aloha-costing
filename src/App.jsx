@@ -9,38 +9,65 @@ import WhatsApp from './views/WhatsApp.jsx';
 import Login, { ChangePassword } from './views/Login.jsx';
 import People from './views/People.jsx';
 import Play from './views/Play.jsx';
+import { Icon, Glossary, BenchBanner } from './views/shell.jsx';
 import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
 import { useViewer } from './data/useViewer.js';
 import { summarize } from './actions/logic.js';
 
-const TABS = {
+// Left navigation per role: groups of [id, label, icon, subtitle].
+const NAV = {
   admin: [
-    ['overview', 'Overview'],
-    ['customers', 'Customers'],
-    ['pms', 'PMs'],
-    ['people', 'People'],
-    ['play', 'Play'],
-    ['actions', 'Actions'],
-    ['whatsapp', 'WhatsApp'],
-    ['bench', 'Bench'],
-    ['checks', 'Data checks'],
+    ['Overview', [['overview', 'Dashboard', 'grid', 'Company COST, spend layers and where to act']]],
+    [
+      'Portfolio',
+      [
+        ['customers', 'Customers', 'building', 'Billing, spend and COST by customer'],
+        ['pms', 'Teams', 'users', 'COST by PM team, with bench and support'],
+        ['people', 'People', 'user', 'Everyone, their allocations and salaries'],
+        ['bench', 'Bench', 'pause', 'People on bench and what it costs'],
+      ],
+    ],
+    [
+      'Improve',
+      [
+        ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
+        ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
+        ['whatsapp', 'WhatsApp', 'chat', 'Weekly digests and alerts for PMs'],
+      ],
+    ],
+    ['Data', [['checks', 'Data & validation', 'shield', 'Source files and cross-checks']]],
   ],
   leadership: [
-    ['overview', 'Overview'],
-    ['customers', 'Customers'],
-    ['pms', 'PMs'],
-    ['people', 'People'],
-    ['play', 'Play'],
-    ['actions', 'Actions'],
-    ['bench', 'Bench'],
-    ['checks', 'Data checks'],
+    ['Overview', [['overview', 'Dashboard', 'grid', 'Company COST, spend layers and where to act']]],
+    [
+      'Portfolio',
+      [
+        ['customers', 'Customers', 'building', 'Billing, spend and COST by customer'],
+        ['pms', 'Teams', 'users', 'COST by PM team, with bench and support'],
+        ['people', 'People', 'user', 'Everyone, their allocations and salaries'],
+        ['bench', 'Bench', 'pause', 'People on bench and what it costs'],
+      ],
+    ],
+    [
+      'Improve',
+      [
+        ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
+        ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
+      ],
+    ],
+    ['Data', [['checks', 'Data & validation', 'shield', 'Source files and cross-checks']]],
   ],
   pm: [
-    ['mine', 'My accounts'],
-    ['customers', 'Customers'],
-    ['actions', 'Actions'],
-    ['bench', 'Bench'],
+    [
+      'My work',
+      [
+        ['mine', 'My team', 'grid', 'Your customers, COST and bench'],
+        ['customers', 'Customers', 'building', 'Your customers'],
+        ['bench', 'Bench', 'pause', 'Your bench'],
+        ['actions', 'Actions', 'check', 'Actions assigned to you'],
+      ],
+    ],
   ],
 };
 
@@ -56,27 +83,25 @@ export default function App() {
   if (viewer.status === 'signed-out') return <Login supabase={viewer.supabase} />;
   if (viewer.status === 'change-password') return <ChangePassword supabase={viewer.supabase} me={viewer.me} onSignOut={viewer.signOut} required />;
   if (viewer.status === 'no-access')
-    return (
-      <Login
-        supabase={viewer.supabase}
-        notice={`${viewer.email} is signed in but hasn't been given access. Ask Matt to add you, or sign in with another email.`}
-      />
-    );
+    return <Login supabase={viewer.supabase} notice={`${viewer.email} is signed in but hasn't been given access. Ask Matt to add you, or sign in with another email.`} />;
   if (viewer.status === 'error') return <div className="empty">{viewer.error}</div>;
   return <Main viewer={viewer} />;
 }
 
 function Main({ viewer }) {
   const { me, api, can } = viewer;
-  const tabs = TABS[me.role] || TABS.pm;
+  const groups = NAV[me.role] || NAV.pm;
+  const items = useMemo(() => groups.flatMap(([, list]) => list), [groups]);
+  const has = (t) => items.some(([id]) => id === t);
   const [model, setModel] = useState(null);
   const [error, setError] = useState(null);
   const [tab, setTabState] = useState(() => {
     const t = location.hash.slice(1).split('/')[0];
-    return tabs.some(([id]) => id === t) ? t : tabs[0][0];
+    return items.some(([id]) => id === t) ? t : items[0][0];
   });
   const [focus, setFocus] = useState(() => decodeURIComponent(location.hash.split('/')[1] || ''));
   const [changingPw, setChangingPw] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     api.loadModel().then(setModel, (e) => setError(e.message));
@@ -86,14 +111,14 @@ function Main({ viewer }) {
   useEffect(() => {
     const onHash = () => {
       const [t, f = ''] = location.hash.slice(1).split('/');
-      if (tabs.some(([id]) => id === t)) {
+      if (items.some(([id]) => id === t)) {
         setTabState(t);
         setFocus(decodeURIComponent(f));
       }
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, [tabs]);
+  }, [items]);
 
   useEffect(() => {
     const h = `#${tab}${focus ? '/' + encodeURIComponent(focus) : ''}`;
@@ -105,9 +130,9 @@ function Main({ viewer }) {
   const pmsById = useMemo(() => Object.fromEntries((model?.pms || []).map((p) => [p.id, p])), [model]);
   const go = (t, f = '') => {
     // Links into views a role doesn't have (e.g. a PM clicking a PM name) go home instead.
-    const allowed = tabs.some(([id]) => id === t);
-    setTabState(allowed ? t : tabs[0][0]);
-    setFocus(allowed ? f : '');
+    setTabState(has(t) ? t : items[0][0]);
+    setFocus(has(t) ? f : '');
+    setNavOpen(false);
     window.scrollTo(0, 0);
   };
 
@@ -118,60 +143,89 @@ function Main({ viewer }) {
   const ctx = { model, pmsById, go, focus, setFocus, store, comms, me, can };
   const overdue = summarize(store.actions).overdue;
   const closureRequests = store.actions.filter((a) => a.status === 'closure_requested').length;
+  const current = items.find(([id]) => id === tab) || items[0];
 
   return (
-    <div className="app">
-      <header className="top">
-        <div>
-          <h1>Project Costing</h1>
-          <div className="sub">
-            Aloha Technology · {model.period} · target margin {Math.round(model.target * 100)}%
+    <div className={`shell ${navOpen ? 'nav-open' : ''}`} onClick={(e) => navOpen && e.target === e.currentTarget && setNavOpen(false)}>
+      <aside className="side">
+        <div className="brand">
+          <div className="brand-mark">A</div>
+          <div>
+            <div className="brand-name">Aloha Technology</div>
+            <div className="brand-sub">Project Costing</div>
           </div>
         </div>
-        <nav>
-          {tabs.map(([id, label]) => (
-            <button key={id} className={tab === id ? 'on' : ''} onClick={() => go(id)}>
-              {label}
-              {id === 'actions' && overdue > 0 && <span className="badge">{overdue}</span>}
-              {id === 'actions' && can.edit && closureRequests > 0 && <span className="badge good">{closureRequests}</span>}
-            </button>
-          ))}
-        </nav>
-        {api.mode === 'cloud' && (
-          <div className="who">
-            <span>
-              {me.name} <span className="muted">· {me.role}</span>
+        {groups.map(([title, list]) => (
+          <div className="nav-group" key={title}>
+            <div className="nav-title">{title}</div>
+            {list.map(([id, label, icon]) => (
+              <button key={id} className={`nav-item ${tab === id ? 'on' : ''}`} onClick={() => go(id)}>
+                <Icon name={icon} />
+                {label}
+                {id === 'actions' && overdue > 0 && <span className="badge" title="Overdue">{overdue}</span>}
+                {id === 'actions' && can.edit && closureRequests > 0 && <span className="badge good" title="Closure requested">{closureRequests}</span>}
+              </button>
+            ))}
+          </div>
+        ))}
+        <div className="side-foot">
+          <div className="who-name">{me.name}</div>
+          <div className="who-role">{me.role}</div>
+          {api.mode === 'cloud' && (
+            <div style={{ marginTop: 8 }}>
+              <button onClick={() => setChangingPw(true)}>Change password</button>
+              <button onClick={viewer.signOut}>Sign out</button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className="main-col">
+        <header className="topbar">
+          <button className="menu-btn" aria-label="Menu" onClick={() => setNavOpen((o) => !o)}>
+            ☰
+          </button>
+          <div>
+            <h1>{current[1]}</h1>
+            <div className="page-sub">{current[3]}</div>
+          </div>
+          <div className="chips">
+            <span className="chip">
+              Period <strong>{model.period}</strong>
             </span>
-            <button className="linkish" onClick={() => setChangingPw(true)}>
-              Change password
-            </button>
-            <button className="linkish" onClick={viewer.signOut}>
-              Sign out
-            </button>
+            <span className="chip" title="Rate used to convert invoiced USD to INR (from the costing sheet)">
+              US$1 = <strong>₹{model.fx?.toFixed(2)}</strong>
+            </span>
+            <span className="chip accent" title="COST is Aloha's name for actual profit %">
+              COST target <strong>{Math.round(model.target * 100)}%</strong>
+            </span>
+            <Glossary target={model.target} />
+          </div>
+        </header>
+        <main className="content">
+          {me.role === 'pm' && <BenchBanner model={model} me={me} go={go} />}
+          {tab === 'overview' && <Overview {...ctx} />}
+          {tab === 'mine' && <Pms {...ctx} focus={me.pmId} setFocus={() => {}} />}
+          {tab === 'customers' && <Customers {...ctx} />}
+          {tab === 'pms' && <Pms {...ctx} />}
+          {tab === 'people' && can.seeAll && <People {...ctx} />}
+          {tab === 'play' && can.seeAll && <Play {...ctx} />}
+          {tab === 'actions' && <Actions {...ctx} />}
+          {tab === 'whatsapp' && <WhatsApp {...ctx} />}
+          {tab === 'bench' && <Bench {...ctx} />}
+          {tab === 'checks' && <DataChecks {...ctx} />}
+        </main>
+        {api.mode === 'preview' && (
+          <div className="preview-bar">
+            Previewing as <strong>{me.role === 'pm' ? pmsById[me.pmId]?.name || me.pmId : 'leadership'}</strong> (read-only).{' '}
+            <a href={location.pathname}>Back to admin</a>
           </div>
         )}
-      </header>
-      <main>
-        {tab === 'overview' && <Overview {...ctx} />}
-        {tab === 'mine' && <Pms {...ctx} focus={me.pmId} setFocus={() => {}} />}
-        {tab === 'customers' && <Customers {...ctx} />}
-        {tab === 'pms' && <Pms {...ctx} />}
-        {tab === 'people' && can.seeAll && <People {...ctx} />}
-        {tab === 'play' && can.seeAll && <Play {...ctx} />}
-        {tab === 'actions' && <Actions {...ctx} />}
-        {tab === 'whatsapp' && <WhatsApp {...ctx} />}
-        {tab === 'bench' && <Bench {...ctx} />}
-        {tab === 'checks' && <DataChecks {...ctx} />}
-      </main>
-      {api.mode === 'preview' && (
-        <div className="preview-bar">
-          Previewing as <strong>{me.role === 'pm' ? pmsById[me.pmId]?.name || me.pmId : 'leadership'}</strong> (read-only).{' '}
-          <a href={location.pathname}>Back to admin</a>
-        </div>
-      )}
-      <footer>
-        {ROLE_NOTE[me.role]} · {api.mode === 'cloud' ? 'published' : 'local data'} {new Date(model.generatedAt).toLocaleString()}
-      </footer>
+        <footer>
+          {ROLE_NOTE[me.role]} · {api.mode === 'cloud' ? 'published' : 'local data'} {new Date(model.generatedAt).toLocaleString()} · spend from payroll
+          (CTC × allocation)
+        </footer>
+      </div>
     </div>
   );
 }

@@ -94,7 +94,7 @@ function PmCard({ pm, msg, type, comms, store, go, on }) {
           </a>
           <div className="muted small-text">
             {type === 'digest'
-              ? `${msg.counts.below} below target · ${msg.counts.open} open · ${msg.counts.overdue} overdue`
+              ? `${msg.counts.below} not managed · ${msg.counts.open} open · ${msg.counts.overdue} overdue`
               : `${msg.counts.overdue} overdue`}
           </div>
         </div>

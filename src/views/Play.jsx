@@ -91,10 +91,10 @@ export function ImpactKpis({ sim }) {
   const tone = (better, worse) => (better ? 'good' : worse ? 'bad' : '');
   return (
     <div className="kpis compact-kpis">
-      <Kpi label="Margin (customers)" value={arrow(b.margin * 100, a.margin * 100, (v) => v.toFixed(1) + '%')} tone={tone(a.margin > b.margin + 1e-9, a.margin < b.margin - 1e-9)} />
-      <Kpi label="Margin after bench" value={arrow(b.marginAfterBench * 100, a.marginAfterBench * 100, (v) => v.toFixed(1) + '%')} tone={tone(a.marginAfterBench > b.marginAfterBench + 1e-9, a.marginAfterBench < b.marginAfterBench - 1e-9)} />
-      <Kpi label="Below 70%" value={arrow(b.belowTarget, a.belowTarget, String)} tone={tone(a.belowTarget < b.belowTarget, a.belowTarget > b.belowTarget)} />
-      <Kpi label="Gap / month" value={arrow(Math.round(b.gapINR), Math.round(a.gapINR), inr)} tone={tone(a.gapINR < b.gapINR - 1, a.gapINR > b.gapINR + 1)} />
+      <Kpi label="COST (project)" value={arrow(b.margin * 100, a.margin * 100, (v) => v.toFixed(1) + '%')} tone={tone(a.margin > b.margin + 1e-9, a.margin < b.margin - 1e-9)} />
+      <Kpi label="COST after bench" value={arrow(b.marginAfterBench * 100, a.marginAfterBench * 100, (v) => v.toFixed(1) + '%')} tone={tone(a.marginAfterBench > b.marginAfterBench + 1e-9, a.marginAfterBench < b.marginAfterBench - 1e-9)} />
+      <Kpi label="Not managed" value={arrow(b.belowTarget, a.belowTarget, String)} tone={tone(a.belowTarget < b.belowTarget, a.belowTarget > b.belowTarget)} />
+      <Kpi label="Cost off by" value={arrow(Math.round(b.gapINR), Math.round(a.gapINR), inr)} tone={tone(a.gapINR < b.gapINR - 1, a.gapINR > b.gapINR + 1)} />
       <Kpi label="Bench cost" value={arrow(Math.round(b.benchCostINR), Math.round(a.benchCostINR), inr)} tone={tone(a.benchCostINR < b.benchCostINR - 1, a.benchCostINR > b.benchCostINR + 1)} />
       <Kpi label="Company saves / month" value={money(sim.netMonthlyINR)} note="cost + bench saved, plus billing added" tone={tone(sim.netMonthlyINR > 1, sim.netMonthlyINR < -1)} />
     </div>
@@ -277,8 +277,8 @@ function Effects({ model, scen }) {
           { key: 'label', label: 'Change', render: (r) => <span className="wrap">{r.label}</span> },
           { key: 'aloneINR', label: 'On its own', align: 'right', render: (r) => `${money(r.aloneINR)}/mo` },
           { key: 'inCombinationINR', label: 'In this scenario', align: 'right', render: (r) => <strong>{money(r.inCombinationINR)}/mo</strong> },
-          { key: 'marginPts', label: 'Company margin', align: 'right', render: (r) => pts(r.marginPts) },
-          { key: 'gapChangeINR', label: 'Gap change', align: 'right', render: (r) => money(r.gapChangeINR), sort: (r) => -r.gapChangeINR },
+          { key: 'marginPts', label: 'COST change', align: 'right', render: (r) => pts(r.marginPts) },
+          { key: 'gapChangeINR', label: 'Cost off by change', align: 'right', render: (r) => money(r.gapChangeINR), sort: (r) => -r.gapChangeINR },
           { key: 'x', label: '', render: (r) => <button className="linkish" onClick={() => scen.removeItem(r.id)}>Remove</button> },
         ]}
         rows={rows}
@@ -294,10 +294,10 @@ function Compare({ model, scen }) {
   const cols = useMemo(() => scen.list.map((s) => ({ s, sim: simulate(model, scen.effectiveOf(s)) })), [model, scen.list, scen.effectiveOf]);
   const base = cols[0]?.sim.before;
   const metrics = [
-    ['Margin (customers)', (x) => pct(x.after.margin), (x) => pct(base.margin)],
-    ['Margin after bench', (x) => pct(x.after.marginAfterBench), () => pct(base.marginAfterBench)],
-    ['Below 70%', (x) => x.after.belowTarget, () => base.belowTarget],
-    ['Gap / month', (x) => inr(x.after.gapINR), () => inr(base.gapINR)],
+    ['COST (project)', (x) => pct(x.after.margin), (x) => pct(base.margin)],
+    ['COST after bench', (x) => pct(x.after.marginAfterBench), () => pct(base.marginAfterBench)],
+    ['Not managed', (x) => x.after.belowTarget, () => base.belowTarget],
+    ['Cost off by', (x) => inr(x.after.gapINR), () => inr(base.gapINR)],
     ['Bench cost', (x) => inr(x.after.benchCostINR), () => inr(base.benchCostINR)],
     ['Company saves / month', (x) => money(x.netMonthlyINR), () => '₹0'],
     ['Changes', (x) => x.changes, () => 0],
@@ -344,12 +344,12 @@ function BeforeAfter({ model, sim, go }) {
   const a = sim.after;
   const company = [
     ['Revenue', inr(b.revenueINR), inr(a.revenueINR), money(a.revenueINR - b.revenueINR)],
-    ['Cost (customers)', inr(b.costINR), inr(a.costINR), money(a.costINR - b.costINR)],
+    ['Project spend', inr(b.costINR), inr(a.costINR), money(a.costINR - b.costINR)],
     ['Bench cost', inr(b.benchCostINR), inr(a.benchCostINR), money(a.benchCostINR - b.benchCostINR)],
-    ['Margin (customers)', pct(b.margin), pct(a.margin), pts((a.margin - b.margin) * 100)],
-    ['Margin after bench', pct(b.marginAfterBench), pct(a.marginAfterBench), pts((a.marginAfterBench - b.marginAfterBench) * 100)],
-    ['Customers below 70%', b.belowTarget, a.belowTarget, a.belowTarget - b.belowTarget],
-    ['Gap / month', inr(b.gapINR), inr(a.gapINR), money(a.gapINR - b.gapINR)],
+    ['COST (project)', pct(b.margin), pct(a.margin), pts((a.margin - b.margin) * 100)],
+    ['COST after bench', pct(b.marginAfterBench), pct(a.marginAfterBench), pts((a.marginAfterBench - b.marginAfterBench) * 100)],
+    ['Not managed customers', b.belowTarget, a.belowTarget, a.belowTarget - b.belowTarget],
+    ['Cost off by', inr(b.gapINR), inr(a.gapINR), money(a.gapINR - b.gapINR)],
   ];
   const changed = sim.customers.filter((c) => c.changed);
   const pms = pmRollup(model, sim).filter((p) => allPms || Math.abs(p.after.cost - p.before.cost) > 1 || Math.abs(p.after.rev - p.before.rev) > 1);
@@ -394,10 +394,10 @@ function BeforeAfter({ model, sim, go }) {
             columns={[
               { key: 'name', label: 'Customer', render: (c) => <a onClick={() => go('customers', c.code)}><strong>{c.name}</strong></a> },
               { key: 'rev', label: 'Revenue', align: 'right', render: (c) => arrow(c.before.revenueINR, c.after.revenueINR, inr), sort: (c) => c.after.revenueINR - c.before.revenueINR },
-              { key: 'cost', label: 'Cost', align: 'right', render: (c) => arrow(c.before.costINR, c.after.costINR, inr), sort: (c) => c.after.costINR - c.before.costINR },
+              { key: 'cost', label: 'Spend', align: 'right', render: (c) => arrow(c.before.costINR, c.after.costINR, inr), sort: (c) => c.after.costINR - c.before.costINR },
               {
                 key: 'margin',
-                label: 'Margin',
+                label: 'COST',
                 align: 'right',
                 render: (c) => (
                   <>
@@ -406,8 +406,8 @@ function BeforeAfter({ model, sim, go }) {
                 ),
                 sort: (c) => (c.after.margin ?? -9) - (c.before.margin ?? -9),
               },
-              { key: 'gap', label: 'Gap / month', align: 'right', render: (c) => arrow(Math.round(c.before.gapINR), Math.round(c.after.gapINR), inr), sort: (c) => c.before.gapINR - c.after.gapINR },
-              { key: 'status', label: '', render: (c) => (c.before.belowTarget && !c.after.belowTarget ? <span className="pill good">now at 70%</span> : !c.before.belowTarget && c.after.belowTarget ? <span className="pill bad">drops below</span> : '') },
+              { key: 'gap', label: 'Cost off by', align: 'right', render: (c) => arrow(Math.round(c.before.gapINR), Math.round(c.after.gapINR), inr), sort: (c) => c.before.gapINR - c.after.gapINR },
+              { key: 'status', label: '', render: (c) => (c.before.belowTarget && !c.after.belowTarget ? <span className="pill good">now managed</span> : !c.before.belowTarget && c.after.belowTarget ? <span className="pill bad">becomes not managed</span> : '') },
             ]}
             rows={changed}
             initialSort={{ key: 'gap', dir: 'desc' }}
@@ -427,10 +427,10 @@ function BeforeAfter({ model, sim, go }) {
           columns={[
             { key: 'name', label: 'PM', render: (p) => <strong>{p.name}</strong> },
             { key: 'rev', label: 'Est. revenue', align: 'right', render: (p) => arrow(p.before.rev, p.after.rev, inr) },
-            { key: 'cost', label: 'Est. cost', align: 'right', render: (p) => arrow(p.before.cost, p.after.cost, inr) },
+            { key: 'cost', label: 'Est. spend', align: 'right', render: (p) => arrow(p.before.cost, p.after.cost, inr) },
             {
               key: 'margin',
-              label: 'Est. margin',
+              label: 'Est. COST',
               align: 'right',
               render: (p) => (
                 <>
@@ -445,7 +445,7 @@ function BeforeAfter({ model, sim, go }) {
               ),
               sort: (p) => (p.after.margin ?? -9) - (p.before.margin ?? -9),
             },
-            { key: 'gap', label: 'Share of gap', align: 'right', render: (p) => arrow(Math.round(p.before.gap), Math.round(p.after.gap), inr), sort: (p) => p.before.gap - p.after.gap },
+            { key: 'gap', label: 'Cost off by', align: 'right', render: (p) => arrow(Math.round(p.before.gap), Math.round(p.after.gap), inr), sort: (p) => p.before.gap - p.after.gap },
           ]}
           rows={pms}
           initialSort={{ key: 'gap', dir: 'desc' }}

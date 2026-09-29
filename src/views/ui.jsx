@@ -15,6 +15,37 @@ export function Margin({ value, target }) {
   return <span className={`pill ${marginClass(value, target)}`}>{value == null ? 'no revenue' : pct(value)}</span>;
 }
 
+export function Status({ managed }) {
+  return <span className={`status-tag ${managed ? 'managed' : 'notmanaged'}`}>{managed ? 'Managed' : 'Not managed'}</span>;
+}
+
+// Spend layers: engineering -> + PMs (project; what Managed is judged on) -> + bench -> + support.
+const LAYER_NAMES = [
+  ['engineering', 'Engineering'],
+  ['project', '+ PMs (project)'],
+  ['withBench', '+ Bench share'],
+  ['full', '+ Support share'],
+];
+export function Layers({ layers, target, revenueINR, names = LAYER_NAMES }) {
+  if (!layers) return null;
+  return (
+    <div className="layers">
+      {names.map(([k, label]) =>
+        layers[k] ? (
+          <div key={k} className={`layer ${k === 'project' ? 'primary-layer' : ''}`}>
+            <div className="l-name">{label}</div>
+            <div className="l-spend">{inrShort(layers[k].spendINR)}</div>
+            <div className="l-cost">
+              COST <Margin value={layers[k].cost ?? (revenueINR > 0 ? (revenueINR - layers[k].spendINR) / revenueINR : null)} target={target} />
+            </div>
+          </div>
+        ) : null
+      )}
+    </div>
+  );
+}
+const inrShort = (n) => (n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${Math.round(n).toLocaleString('en-IN')}`);
+
 export function Severity({ level }) {
   return <span className={`sev ${level}`}>{level}</span>;
 }

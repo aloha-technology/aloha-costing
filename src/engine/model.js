@@ -92,7 +92,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
 
   // --- Salaries -------------------------------------------------------------------------
   const pay = new Map();
-  for (const p of raw.paysheet.rows) pay.set(empId(p.ID), { base: num(p['Base Salary']), incentive: num(p['Incentive Amount']), ctc: num(p.CTC) });
+  for (const p of raw.paysheet.rows) pay.set(empId(p.ID), { name: text(p.NAME), base: num(p['Base Salary']), incentive: num(p['Incentive Amount']), ctc: num(p.CTC) });
 
   // --- Allocations: one row per person per project ------------------------------------
   const allocations = [];
@@ -138,7 +138,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       const c = code(s['Billing Code']);
       const costingRevenueUSD = num(s['Revenue USD']);
       const costingRevenueINR = num(s['Revenue INR']);
-      const costINR = num(s['Cost INR']);
+      const sheetCostINR = num(s['Cost INR']);
       const inv = invoicing.get(c) || null;
       const fx = costingRevenueUSD > 0 ? costingRevenueINR / costingRevenueUSD : globalFx;
       const revenueSource = inv ? 'invoicing' : 'costing';
@@ -175,6 +175,9 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       for (const id of pmIds) slot(id);
       const totalSeatValue = [...byPm.values()].reduce((a, x) => a + x.seatValueUSD, 0);
       const computedCostINR = people.reduce((a, p) => a + p.costINR, 0);
+      // Spend comes from payroll (CTC x allocation); the portal's costing-sheet cost is kept as a cross-check.
+      const costINR = computedCostINR > 0 ? computedCostINR : sheetCostINR;
+      const costBasis = computedCostINR > 0 ? 'payroll' : 'costing-sheet';
       const pmSplit = [...byPm.values()]
         .filter((x) => x.pmId)
         .map((x) => ({
@@ -194,6 +197,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         costingRevenueUSD,
         costingRevenueINR,
         costINR,
+        sheetCostINR,
+        costBasis,
         fx,
         margin: revenueINR > 0 ? (revenueINR - costINR) / revenueINR : null,
         belowTarget: revenueINR > 0 ? (revenueINR - costINR) / revenueINR < target : costINR > 0,
@@ -201,7 +206,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
         billable: num(s['Billabel Resources']),
         allocated: num(s['Resources Allocated']),
         computedCostINR,
-        reconciliation: costINR > 0 ? computedCostINR / costINR : null,
+        reconciliation: sheetCostINR > 0 ? computedCostINR / sheetCostINR : null,
         invoicing: inv && { amountUSD: inv.amountUSD, seats: inv.seats, diffAmountUSD: inv.diffAmountUSD, diffSeats: inv.diffSeats, lines: inv.lines },
         seats: subs.flatMap((sp) => sp.seats.map((x) => ({ ...x, subproject: sp.name }))),
         pmSplit,
@@ -286,6 +291,54 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  // --- Cost layers: engineering -> + PMs -> + bench share -> + support share ---------------
+  const SUPPORT_ROLES = new Set(['HR', 'MIS', 'Accounts', 'Admin']);
+  const pmNameSet = new Set([...pms.values()].map((p) => p.name.toLowerCase()));
+  for (const e of employees) {
+    e.category = SUPPORT_ROLES.has(e.designation) ? 'support' : e.designation === 'Project Manager' || pmNameSet.has(e.name.toLowerCase()) ? 'pm' : 'engineering';
+  }
+  const ctcOf = (e) => e?.ctcMonthlyINR || 0;
+  const supportPool = employees.filter((e) => e.category === 'support').reduce((a, e) => a + (ctcOf(e) * Math.max(0, 100 - e.allocatedPct)) / 100, 0);
+  // Engineers / PMs with time on no customer and not on bench: paid but not assigned anywhere.
+  const unassignedINR = employees.filter((e) => e.category !== 'support').reduce((a, e) => a + (ctcOf(e) * e.idlePct) / 100, 0);
+  // People on payroll who aren't in the portal's employee list: to be classified by Matt.
+  const unclassified = [...pay.entries()].filter(([id]) => !empMap.has(id)).map(([id, p]) => ({ empId: id, name: p.name, ctcMonthlyINR: p.ctc }));
+
+  // Bench spend from payroll (CTC x bench %), falling back to the bench file's figure.
+  for (const b of bench) {
+    const e = empMap.get(b.empId);
+    b.fileCostINR = b.costINR;
+    if (e?.ctcMonthlyINR) b.costINR = (e.ctcMonthlyINR * b.allocPct) / 100;
+  }
+  const benchByPm = new Map();
+  for (const b of bench) benchByPm.set(b.pmId, (benchByPm.get(b.pmId) || 0) + b.costINR);
+
+  const engOf = (c) => c.people.filter((p) => !p.isPm).reduce((a, p) => a + p.costINR, 0);
+  const totalEng = customers.reduce((a, c) => a + engOf(c), 0);
+  let benchUnplacedINR = 0;
+  for (const c of customers) c.benchShareINR = 0;
+  for (const [pmId, spend] of benchByPm) {
+    // A PM's bench is shared across their customers by their project spend on each.
+    const mine = customers.map((c) => ({ c, s: c.pmSplit.find((x) => x.pmId === pmId)?.costINR || 0 })).filter((x) => x.s > 0);
+    const tot = mine.reduce((a, x) => a + x.s, 0);
+    if (!tot) benchUnplacedINR += spend;
+    else for (const x of mine) x.c.benchShareINR += (spend * x.s) / tot;
+  }
+  const costPct = (rev, spend) => (rev > 0 ? (rev - spend) / rev : null);
+  for (const c of customers) {
+    const eng = engOf(c);
+    c.supportShareINR = totalEng > 0 ? (supportPool * eng) / totalEng : 0;
+    const project = c.costINR;
+    c.layers = {
+      engineering: { spendINR: eng, cost: costPct(c.revenueINR, eng) },
+      project: { spendINR: project, cost: costPct(c.revenueINR, project) },
+      withBench: { spendINR: project + c.benchShareINR, cost: costPct(c.revenueINR, project + c.benchShareINR) },
+      full: { spendINR: project + c.benchShareINR + c.supportShareINR, cost: costPct(c.revenueINR, project + c.benchShareINR + c.supportShareINR) },
+    };
+    c.pmSpendINR = project - eng;
+    c.managed = !c.belowTarget;
+  }
+
   // --- PM roll-up -----------------------------------------------------------------------
   const pmList = [...pms.values()].map((pm) => {
     const mine = customers.filter((c) => c.pmIds.includes(pm.id));
@@ -301,6 +354,14 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       gapINR += c.gapINR * costShare;
     }
     const myBench = bench.filter((b) => b.pmId === pm.id);
+    let supportINR = 0;
+    let benchShareINR = 0;
+    for (const c of mine) {
+      const split = c.pmSplit.find((x) => x.pmId === pm.id);
+      const cs = c.computedCostINR > 0 && split ? split.costShare : 1 / c.pmIds.length;
+      supportINR += c.supportShareINR * cs;
+      benchShareINR += c.benchShareINR * cs;
+    }
     return {
       ...pm,
       customerCodes: mine.map((c) => c.code),
@@ -314,6 +375,11 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       gapINR,
       benchPeople: myBench.length,
       benchCostINR: myBench.reduce((a, b) => a + b.costINR, 0),
+      teamLayers: {
+        project: { spendINR: costINR, cost: revenueINR > 0 ? (revenueINR - costINR) / revenueINR : null },
+        withOwnBench: { spendINR: costINR + myBench.reduce((a, b) => a + b.costINR, 0), cost: revenueINR > 0 ? (revenueINR - costINR - myBench.reduce((a, b) => a + b.costINR, 0)) / revenueINR : null },
+        full: { spendINR: costINR + benchShareINR + supportINR, cost: revenueINR > 0 ? (revenueINR - costINR - benchShareINR - supportINR) / revenueINR : null },
+      },
     };
   });
 
@@ -325,7 +391,7 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
   const fxRows = customers.filter((c) => c.fx);
   const summaryCodes = new Set(customers.map((c) => c.code));
 
-  return {
+  const out = {
     generatedAt,
     period: raw.summary.sheetName,
     target,
@@ -345,11 +411,28 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       benchCostINR,
       marginAfterBench: revenueINR > 0 ? (revenueINR - costINR - benchCostINR) / revenueINR : null,
       computedCostINR: sum(customers, 'computedCostINR'),
+      sheetCostINR: sum(customers, 'sheetCostINR'),
+      // Spend by layer (payroll basis) and COST % (profit, Aloha terminology) at each layer.
+      engineeringINR: sum(customers, 'costINR') - sum(customers, 'pmSpendINR'),
+      pmSpendINR: sum(customers, 'pmSpendINR'),
+      supportINR: supportPool,
+      unassignedINR,
+      benchUnplacedINR,
+      unclassifiedPayrollINR: unclassified.reduce((a, u) => a + (u.ctcMonthlyINR || 0), 0),
+      unclassifiedPeople: unclassified.length,
+      payrollINR: [...pay.values()].reduce((a, p) => a + p.ctc, 0),
+      layers: {
+        engineering: { spendINR: costINR - sum(customers, 'pmSpendINR') },
+        project: { spendINR: costINR },
+        withBench: { spendINR: costINR + benchCostINR },
+        full: { spendINR: costINR + benchCostINR + supportPool },
+      },
     },
     customers: customers.sort((a, b) => b.gapINR - a.gapINR),
     pms: pmList.sort((a, b) => b.gapINR - a.gapINR),
     bench,
     employees,
+    unclassified,
     dataQuality: {
       employeesWithoutSalary: [...noPay.values()],
       unknownProjects: [...unknownProjects],
@@ -360,6 +443,8 @@ export function buildModel(raw, { target = DEFAULT_TARGET, generatedAt = new Dat
       pmsWithoutEmail: pmList.filter((p) => !p.email).map((p) => p.name),
     },
   };
+  for (const l of Object.values(out.totals.layers)) l.cost = revenueINR > 0 ? (revenueINR - l.spendINR) / revenueINR : null;
+  return out;
 }
 
 function findDiff(row, kind) {

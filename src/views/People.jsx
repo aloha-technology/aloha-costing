@@ -143,10 +143,10 @@ export default function People({ model, pmsById, go, store, can }) {
           <ScenarioReview model={model} sim={sim} scenario={scenario} store={store} pmsById={pmsById} go={go} close={() => setReviewing(false)} />
         )}
         <div className="kpis compact-kpis">
-          <Kpi label="Margin (customers)" value={delta(b.margin * 100, a.margin * 100, (v) => v.toFixed(1) + '%', 0.05)} tone={a.margin > b.margin + 1e-9 ? 'good' : a.margin < b.margin - 1e-9 ? 'bad' : ''} />
-          <Kpi label="Margin after bench" value={delta(b.marginAfterBench * 100, a.marginAfterBench * 100, (v) => v.toFixed(1) + '%', 0.05)} tone={a.marginAfterBench > b.marginAfterBench + 1e-9 ? 'good' : a.marginAfterBench < b.marginAfterBench - 1e-9 ? 'bad' : ''} />
-          <Kpi label="Below 70%" value={delta(b.belowTarget, a.belowTarget, String)} tone={a.belowTarget < b.belowTarget ? 'good' : a.belowTarget > b.belowTarget ? 'bad' : ''} />
-          <Kpi label="Gap / month" value={delta(b.gapINR, a.gapINR, inr)} tone={a.gapINR < b.gapINR - 1 ? 'good' : a.gapINR > b.gapINR + 1 ? 'bad' : ''} />
+          <Kpi label="COST (project)" value={delta(b.margin * 100, a.margin * 100, (v) => v.toFixed(1) + '%', 0.05)} tone={a.margin > b.margin + 1e-9 ? 'good' : a.margin < b.margin - 1e-9 ? 'bad' : ''} />
+          <Kpi label="COST after bench" value={delta(b.marginAfterBench * 100, a.marginAfterBench * 100, (v) => v.toFixed(1) + '%', 0.05)} tone={a.marginAfterBench > b.marginAfterBench + 1e-9 ? 'good' : a.marginAfterBench < b.marginAfterBench - 1e-9 ? 'bad' : ''} />
+          <Kpi label="Not managed" value={delta(b.belowTarget, a.belowTarget, String)} tone={a.belowTarget < b.belowTarget ? 'good' : a.belowTarget > b.belowTarget ? 'bad' : ''} />
+          <Kpi label="Cost off by" value={delta(b.gapINR, a.gapINR, inr)} tone={a.gapINR < b.gapINR - 1 ? 'good' : a.gapINR > b.gapINR + 1 ? 'bad' : ''} />
           <Kpi label="Bench cost" value={delta(b.benchCostINR, a.benchCostINR, inr)} tone={a.benchCostINR > b.benchCostINR + 1 ? 'warn' : a.benchCostINR < b.benchCostINR - 1 ? 'good' : ''} />
           <Kpi label="Company saves / month" value={inr(sim.netMonthlyINR)} note="cost + bench saved, plus billing added" tone={sim.netMonthlyINR > 1 ? 'good' : sim.netMonthlyINR < -1 ? 'bad' : ''} />
         </div>
@@ -234,7 +234,7 @@ export default function People({ model, pmsById, go, store, can }) {
                 <th>PM</th>
                 <th className="r">Time here</th>
                 <th>Billable</th>
-                <th className="r">Cost here</th>
+                <th className="r">Spend here</th>
                 <th className="r">Total time</th>
                 <th>Release</th>
                 <th />
