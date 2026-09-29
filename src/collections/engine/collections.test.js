@@ -6,7 +6,7 @@ import { bucketOf, agingTotals, overdueDays } from './aging.js';
 import { payerCheck, autoAllocate, applyAllocations, settledAmount, validatePayment } from './payments.js';
 import { parseInvoiceRows, diffImport, invoiceKey, newInvoice } from './importer.js';
 import { customerSummary } from './suggest.js';
-import { buildReport, periodText } from './report.js';
+import { buildReport, periodText, buildPivot, dumpStatus, excelSerial } from './report.js';
 import { parseDate, addDays } from './dates.js';
 
 const S = withDefaults(null);
@@ -197,7 +197,24 @@ test('suggestions and Sid report', () => {
   assert.equal(s.actions[0].priority, 'critical');
   assert.ok(kinds.includes('promise') && kinds.includes('contact') && kinds.includes('setup'));
   const sheets = buildReport({ customers: [c], invoices: [inv()], payments: [] }, [s], { on });
-  assert.deepEqual(sheets.map((x) => x.name), ['Summary', 'Pending by customer', 'Month-wise AR', 'Open invoices', 'Payments received']);
-  assert.equal(sheets[1].rows[1][0], 'Acme Inc');
+  assert.deepEqual(sheets.map((x) => x.name), ['Pivot', 'Dump', 'Pending by customer', 'Aging & collections', 'Payments received']);
+  assert.equal(sheets[2].rows[1][0], 'Acme Inc');
+  assert.equal(sheets[1].rows[1][7], 'Acme Inc');
   assert.equal(periodText([inv(), inv({ period: '2026-10', balance: 500 })]), 'Sep 2026 (Invoices: 1, Amount: $3,000.00)\nOct 2026 (Invoices: 1, Amount: $500.00)');
+});
+
+test('Sid pivot: billing month totals, void and bad debt left out, month range', () => {
+  const invs = [
+    inv({ id: 'a', date: '2024-01-05', period: '2024-01', amount: 1000, balance: 0, status: 'paid' }),
+    inv({ id: 'b', date: '2024-01-20', period: '2024-01', amount: 500, balance: 200 }),
+    inv({ id: 'c', date: '2024-02-03', period: '2024-02', amount: 700, balance: 700, status: 'bad_debt' }),
+    inv({ id: 'd', date: '2024-02-03', period: '2024-02', amount: 0, balance: 0, status: 'void' }),
+    inv({ id: 'e', date: '2024-03-03', period: '2024-03', amount: 900, balance: 900 }),
+  ];
+  const p = buildPivot(invs, { fromMonth: '2024-01', toMonth: '2024-02' });
+  assert.deepEqual(p.rows.slice(2), [['Row Labels', 'Sum of bcy_total', 'Sum of bcy_balance'], ['Jan-24', 1500, 200], ['Grand Total', 1500, 200]]);
+  assert.equal(dumpStatus(inv(), '2026-09-10'), 'sent');
+  assert.equal(dumpStatus(inv(), '2026-09-20'), 'overdue');
+  assert.equal(dumpStatus(inv({ status: 'void', zohoStatus: 'True Void' }), '2026-09-20'), 'True Void');
+  assert.equal(excelSerial('2025-12-31'), 46022);
 });

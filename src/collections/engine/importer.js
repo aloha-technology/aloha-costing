@@ -13,6 +13,7 @@ const HEADERS = {
   status: ['status', 'invoice status', 'invoice_status'],
   currency: ['currency_code', 'currency'],
   entity: ['entity', 'billing entity'],
+  zohoId: ['invoice_id', 'invoice id'],
 };
 
 export const norm = (s) => String(s ?? '').trim().toLowerCase();
@@ -82,6 +83,8 @@ export function parseInvoiceRows(rows, { source = 'zoho' } = {}) {
       currency: (h.currency && String(r[h.currency] || '').trim().toUpperCase()) || 'USD',
       status,
       entity: h.entity ? String(r[h.entity] || '').trim() : '',
+      zohoId: h.zohoId ? String(r[h.zohoId] || '').trim() : '',
+      zohoStatus: h.status ? String(r[h.status] || '').trim() : '',
       source,
     });
   });
@@ -137,6 +140,8 @@ export function newInvoice(inc, { customerId, staleDays, on, by }) {
     currency: inc.currency || 'USD',
     status: inc.status,
     entity: inc.entity || '',
+    zohoId: inc.zohoId || '',
+    zohoStatus: inc.zohoStatus || '',
     source: inc.source,
     doNotSend: Boolean(stale),
     doNotSendReason: stale ? `Older than ${staleDays} days at import; review before chasing` : '',

@@ -32,7 +32,7 @@ const sources = {
   details: `${DESK}/Files to use/Pending Payment_Apr-26.xlsx`,
   payments: `${DESK}/Payments in 25-26.xlsx`,
   model: 'D:/Aloha App/data/model.json',
-  since: '2024-04-01', // invoice history kept from this date (older only if still open)
+  since: '2022-04-01', // invoice history kept from this date (FY22, as in Sid's AR report; older only if still open)
   ...readJson(path.join(root, 'data', 'collections-sources.json')),
 };
 
@@ -73,7 +73,8 @@ const dump = sheet(sources.arDump, 'Dump');
 const { invoices: parsed, errors } = parseInvoiceRows(dump, { source: 'zoho' });
 if (errors.length) console.warn(`  ${errors.length} rows skipped, e.g. ${errors[0]}`);
 const asOf = parsed.reduce((m, i) => (i.date > m ? i.date : m), '');
-const keep = parsed.filter((i) => i.status !== 'void' && (i.date >= sources.since || i.status === 'open' || i.status === 'bad_debt'));
+// Voids are kept (never chased) so Sid's report shows them as the Zoho dump does.
+const keep = parsed.filter((i) => i.date >= sources.since || i.status === 'open' || i.status === 'bad_debt');
 
 // Customers from the invoice history.
 const custMap = new Map();
@@ -173,6 +174,16 @@ const invoices = keep.map((i) => {
   if (i.status !== 'open') doc.confirmed = true;
   return doc;
 });
+// Per-invoice comments and true-void amounts from the dump (shown again in Sid's report).
+const dumpByNo = new Map(dump.map((r) => [String(r.invoice_number || '').trim(), r]));
+for (const inv of invoices) {
+  const r = dumpByNo.get(inv.number);
+  if (!r) continue;
+  const comment = String(r["Matt's comment"] || '').trim();
+  if (comment) inv.notes.push({ at: `${inv.date}T00:00:00.000Z`, by: 'Matt', text: comment });
+  const voidAmt = parseFloat(String(r['Invoice Amt(True Void)'] || '').replace(/[, ]/g, ''));
+  if (inv.status === 'void' && voidAmt) inv.voidAmount = voidAmt;
+}
 const openInv = invoices.filter((i) => i.status === 'open' && i.balance > 0);
 
 console.log(`\nZoho data as of ${asOf} (today ${on})`);

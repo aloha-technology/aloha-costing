@@ -30,8 +30,10 @@ The database enforces this (`supabase/collections.sql`, tested by `supabase/coll
   marks it Checked or sends it back with a note, then sends it to the customer with the PDF attached.
 - **Contracts**: repository per customer (file, type, legal name, term, payment terms), with
   expiry warnings and a list of active customers without a contract.
-- **Reports**: Excel for Sid with Summary + aging, Pending by customer (same columns as the current
-  Pending Invoices sheet), Month-wise AR, Open invoices, and Payments received with bank charges.
+- **Reports**: Excel for Sid in the layout of `New_File_AR_FY 22 - 26.xlsx`: **Pivot** (billing month →
+  Sum of bcy_total / Sum of bcy_balance / Grand Total, void and bad debt left out, month range selectable) and
+  **Dump** (every invoice with the Zoho columns, Matt's comment, true-void amount), then Pending by customer,
+  Aging & collections, and Payments received with bank charges.
 - **Setup & import**: confirm every customer and open invoice the first setup created; import the
   latest Zoho "Invoice Details" (or QuickBooks) export. The import shows a diff (new, paid, part-paid,
   unknown customers) before anything changes.
