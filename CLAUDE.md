@@ -89,6 +89,11 @@ Aloha builds IT solutions for small businesses.
 1. Left-nav redesign, terminology, US$ rate + billed seats shown, cost layers — done.
    Step 2 done: customer profiles (PM-readable), rate cards (admin+leadership), Settings with
    standard rates ($3,000 default, AI Engineer $4,000) and 12-month revision; `src/engine/ratecard.js`.
+   Step 3 done: Data & validation page. Monthly exports are uploaded and parsed in Matt's browser
+   (`src/engine/parse.js`, lazy-loaded), stored admin-only (`import_files`), checked
+   (`src/engine/validate.js`), validated per dataset (publishing blocked until all are), payroll-only
+   people classified (`people_categories`), revenue/salary corrections applied on build, then published
+   from the browser (admin may write snapshots). Per-customer sign-off in `customer_validations`.
 2. Customer master data (brief, tech, teams, people skills/exp) + rate card (bill vs Aloha standard
    rate, discount % + reason, last revised, due for revision).
 3. Uploads (payroll, billing, allocations) with per-dataset/record validation by Matt; classify the

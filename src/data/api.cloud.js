@@ -2,6 +2,7 @@
 // security in supabase/schema.sql; this file just maps rows to the app's shapes.
 import { createClient } from '@supabase/supabase-js';
 import { newAction, applyChange, isClosed } from '../actions/logic.js';
+import { pmView, adminView } from '../engine/views.js';
 
 export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
   auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true },
@@ -70,6 +71,7 @@ export function cloudApi(me) {
   return {
     mode: 'cloud',
     ...masterApi(me),
+    ...importsApi(me),
     async loadModel() {
       const audience = seesAll ? 'admin' : `pm:${me.pmId}`;
       const rows = must(await supabase.from('snapshots').select('data').eq('audience', audience).order('generated_at', { ascending: false }).limit(1));
@@ -178,6 +180,74 @@ export function masterApi(me) {
     async saveSettings(s) {
       must(await supabase.from('app_settings').upsert({ key: 'costing', value: s, updated_by: by, updated_at: new Date().toISOString() }));
       return s;
+    },
+  };
+}
+
+// --- Imports, validation, classification, corrections (admin; leadership reads stamps) ----
+
+export function importsApi(me) {
+  const by = me.name || me.email;
+  const now = () => new Date().toISOString();
+  const TABLE = { validation: 'dataset_validations', customer: 'customer_validations', category: 'people_categories', revenue: 'revenue_overrides', salary: 'salary_overrides' };
+  return {
+    async getImports() {
+      if (me.role === 'pm') return null;
+      const admin = me.role === 'admin';
+      const q = (t) => supabase.from(t).select('*').then(must);
+      const [files, vals, cvals, cats, revs, sals] = await Promise.all([
+        admin ? q('import_files') : [],
+        q('dataset_validations'),
+        q('customer_validations'),
+        admin ? q('people_categories') : [],
+        q('revenue_overrides'),
+        admin ? q('salary_overrides') : [],
+      ]);
+      const periods = [...new Set([...files.map((f) => f.period), ...vals.map((v) => v.period)])].sort();
+      const period = periods.at(-1) || null;
+      const forP = (arr) => arr.filter((x) => x.period === period);
+      return {
+        period,
+        files: Object.fromEntries(forP(files).map((f) => [f.kind, { file: f.file_name, sheetName: f.sheet_name, header: f.header, rows: f.rows, uploadedBy: f.uploaded_by, uploadedAt: f.uploaded_at }])),
+        validations: Object.fromEntries(forP(vals).map((v) => [v.kind, { status: v.status, note: v.note, checks: v.checks, file: v.file_name, by: v.validated_by, at: v.validated_at }])),
+        customerValidations: Object.fromEntries(forP(cvals).map((v) => [v.code, { status: v.status, note: v.note, by: v.validated_by, at: v.validated_at }])),
+        categories: Object.fromEntries(cats.map((c) => [c.emp_id, { category: c.category, name: c.name, note: c.note, by: c.updated_by, at: c.updated_at }])),
+        revenueOverrides: Object.fromEntries(forP(revs).map((r) => [r.code, { amountUSD: Number(r.amount_usd), reason: r.reason, by: r.updated_by, at: r.updated_at }])),
+        salaryOverrides: Object.fromEntries(sals.map((s) => [s.emp_id, { ctcMonthlyINR: Number(s.ctc_monthly_inr), reason: s.reason, name: s.name, by: s.updated_by, at: s.updated_at }])),
+      };
+    },
+    async saveImportFile(period, kind, f) {
+      must(await supabase.from('import_files').upsert({ period, kind, file_name: f.file, sheet_name: f.sheetName, header: f.header, rows: f.rows, uploaded_by: by, uploaded_at: now() }));
+      return { ...f, uploadedBy: by, uploadedAt: now() };
+    },
+    async setImportRecord(type, period, key, v) {
+      const table = TABLE[type];
+      const keyCols = { validation: { period, kind: key }, customer: { period, code: key }, category: { emp_id: key }, revenue: { period, code: key }, salary: { emp_id: key } }[type];
+      if (v == null) {
+        let q = supabase.from(table).delete();
+        for (const [k, val] of Object.entries(keyCols)) q = q.eq(k, val);
+        must(await q);
+        return {};
+      }
+      const row = {
+        validation: { status: v.status, note: v.note || '', checks: v.checks || [], file_name: v.file || null, validated_by: by, validated_at: now() },
+        customer: { status: v.status, note: v.note || '', validated_by: by, validated_at: now() },
+        category: { category: v.category, name: v.name || null, note: v.note || '', updated_by: by, updated_at: now() },
+        revenue: { amount_usd: v.amountUSD, reason: v.reason, updated_by: by, updated_at: now() },
+        salary: { ctc_monthly_inr: v.ctcMonthlyINR, reason: v.reason, name: v.name || null, updated_by: by, updated_at: now() },
+      }[type];
+      must(await supabase.from(table).upsert({ ...keyCols, ...row }));
+      return { ...v, by, at: now() };
+    },
+    // Publish from Matt's browser: full snapshot for admin/leadership, PM-safe one per PM.
+    async publishModel(model, period) {
+      const rows = [
+        { period, audience: 'admin', generated_at: model.generatedAt, data: adminView(model) },
+        ...model.pms.map((pm) => ({ period, audience: `pm:${pm.id}`, generated_at: model.generatedAt, data: pmView(model, pm.id) })),
+      ];
+      must(await supabase.from('snapshots').upsert(rows, { onConflict: 'period,audience' }));
+      must(await supabase.from('customer_profiles').upsert(model.customers.map((c) => ({ code: c.code, name: c.name, pm_ids: c.pmIds })), { onConflict: 'code' }));
+      return { ok: true, snapshots: rows.length };
     },
   };
 }

@@ -5,15 +5,16 @@ import { FindingAction } from './ActionParts.jsx';
 import { ProfileCard, RateCardCard, AddCustomer, ReviewTag } from './Master.jsx';
 import { rateCard } from '../engine/ratecard.js';
 
-export default function Customers({ model, pmsById, focus, setFocus, store, go, can, master }) {
+export default function Customers({ model, pmsById, focus, setFocus, store, go, can, master, imports }) {
   const customer = model.customers.find((c) => c.code === focus);
-  if (customer) return <CustomerDetail c={customer} model={model} pmsById={pmsById} store={store} go={go} can={can} master={master} back={() => setFocus('')} />;
+  if (customer) return <CustomerDetail c={customer} model={model} pmsById={pmsById} store={store} go={go} can={can} master={master} imports={imports} back={() => setFocus('')} />;
   const manual = master?.profiles[focus]?.manual && master.profiles[focus];
   if (manual) return <ManualCustomer code={focus} p={manual} model={model} master={master} can={can} pmsById={pmsById} back={() => setFocus('')} />;
-  return <CustomerList model={model} pmsById={pmsById} open={setFocus} master={master} can={can} />;
+  return <CustomerList model={model} pmsById={pmsById} open={setFocus} master={master} can={can} imports={imports} />;
 }
 
-function CustomerList({ model, pmsById, open, master, can }) {
+function CustomerList({ model, pmsById, open, master, can, imports }) {
+  const cv = imports?.st?.customerValidations || {};
   const [q, setQ] = useState('');
   const [pm, setPm] = useState('');
   const [onlyBelow, setOnlyBelow] = useState(false);
@@ -48,6 +49,7 @@ function CustomerList({ model, pmsById, open, master, can }) {
     { key: 'managed', label: 'Status', render: (c) => <Status managed={!c.belowTarget} />, sort: (c) => (c.belowTarget ? 0 : 1) },
     { key: 'gapINR', label: 'Cost off by', align: 'right', render: (c) => (c.gapINR > 0 ? inr(c.gapINR) : '—') },
     { key: 'seats', label: 'Billed / allocated', align: 'right', render: (c) => `${c.billable} / ${c.allocated}`, sort: (c) => c.allocated - c.billable },
+    ...(can?.seeAll ? [{ key: 'validated', label: 'Validated', render: (c) => (cv[c.code]?.status === 'validated' ? <span className="pill good" title={`${cv[c.code].by} · ${new Date(cv[c.code].at).toLocaleDateString()}`}>✓ {new Date(cv[c.code].at).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span> : cv[c.code]?.status === 'rejected' ? <span className="pill bad">Needs fixing</span> : <span className="muted small-text">—</span>), sort: (c) => (cv[c.code]?.status === 'validated' ? 2 : cv[c.code] ? 1 : 0) }] : []),
     ...(can?.seeAll ? [{ key: 'review', label: 'Rate review', render: (c) => <ReviewTag status={reviewOf(c)} />, sort: (c) => ({ due: 3, soon: 2, unknown: 1, ok: 0 })[reviewOf(c)] }] : []),
     {
       key: 'findings',
@@ -118,7 +120,7 @@ function CustomerList({ model, pmsById, open, master, can }) {
   );
 }
 
-function CustomerDetail({ c, model, pmsById, store, go, can, master, back }) {
+function CustomerDetail({ c, model, pmsById, store, go, can, master, imports, back }) {
   const target = model.target;
   const nonBillableCost = c.people.filter((p) => !p.billable).reduce((a, p) => a + p.costINR, 0);
   const seatsByRole = Object.values(
@@ -138,6 +140,7 @@ function CustomerDetail({ c, model, pmsById, store, go, can, master, back }) {
       <div className="title-row">
         <h2>{c.name}</h2>
         <Status managed={!c.belowTarget} />
+        {can.seeAll && imports?.st && <CustomerStamp code={c.code} imports={imports} can={can} />}
         <span className="muted">
           {c.code} · account PM {pmsById[c.accountPm]?.name || '—'} · team {c.pmIds.map((id) => pmsById[id]?.name.split(' ')[0]).join(', ')}
         </span>
@@ -275,5 +278,51 @@ function ManualCustomer({ code, p, model, master, can, pmsById, back }) {
       <ProfileCard c={c} master={master} can={can} pmsById={pmsById} />
       {can.seeAll && <RateCardCard c={c} master={master} can={can} />}
     </>
+  );
+}
+
+// Matt signs off each customer's numbers for the month.
+function CustomerStamp({ code, imports, can }) {
+  const v = imports.st.customerValidations?.[code];
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const stamp = async (status) => {
+    await imports.setRecord('customer', code, { status, note: note.trim() });
+    setOpen(false);
+    setNote('');
+  };
+  return (
+    <span className="validated-stamp">
+      {v?.status === 'validated' ? (
+        <span className="pill good" title={v.note || ''}>
+          ✓ Validated by {v.by} · {new Date(v.at).toLocaleDateString()}
+        </span>
+      ) : v?.status === 'rejected' ? (
+        <span className="pill bad" title={v.note || ''}>Needs fixing · {v.by}</span>
+      ) : (
+        <span className="pill warn">Not validated for {imports.st.period}</span>
+      )}
+      {can.edit && !open && (
+        <button className="linkish" onClick={() => setOpen(true)}>
+          {v ? 'Change' : 'Validate…'}
+        </button>
+      )}
+      {can.edit && open && (
+        <>
+          <input className="text-in" style={{ minWidth: 220 }} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <button className="primary" onClick={() => stamp('validated')}>
+            Validate
+          </button>
+          <button className="small" onClick={() => stamp('rejected')}>
+            Needs fixing
+          </button>
+          {v && (
+            <button className="linkish" onClick={async () => (await imports.setRecord('customer', code, null), setOpen(false))}>
+              Clear
+            </button>
+          )}
+        </>
+      )}
+    </span>
   );
 }

@@ -248,3 +248,87 @@ create policy app_settings_write on public.app_settings for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
 revoke all on public.customer_profiles, public.customer_rates, public.app_settings from anon;
+
+-- ---------------------------------------------------------------------------
+-- Step 3: in-app uploads, validation, classification and corrections.
+-- Raw uploaded rows (incl. salaries) and salary corrections are admin-only.
+-- Validation stamps and revenue corrections are readable by leadership.
+-- ---------------------------------------------------------------------------
+create table if not exists public.import_files (
+  period text not null,
+  kind text not null,
+  file_name text not null,
+  sheet_name text,
+  header jsonb not null default '[]'::jsonb,
+  rows jsonb not null,
+  uploaded_by text,
+  uploaded_at timestamptz not null default now(),
+  primary key (period, kind)
+);
+create table if not exists public.dataset_validations (
+  period text not null,
+  kind text not null,
+  status text not null check (status in ('validated', 'rejected')),
+  note text not null default '',
+  checks jsonb not null default '[]'::jsonb,
+  file_name text,
+  validated_by text,
+  validated_at timestamptz not null default now(),
+  primary key (period, kind)
+);
+create table if not exists public.customer_validations (
+  period text not null,
+  code text not null,
+  status text not null check (status in ('validated', 'rejected')),
+  note text not null default '',
+  validated_by text,
+  validated_at timestamptz not null default now(),
+  primary key (period, code)
+);
+create table if not exists public.people_categories (
+  emp_id text primary key,
+  category text not null check (category in ('engineering', 'pm', 'support', 'overhead', 'leaving', 'exclude')),
+  name text,
+  note text not null default '',
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.revenue_overrides (
+  period text not null,
+  code text not null,
+  amount_usd numeric not null,
+  reason text not null,
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  primary key (period, code)
+);
+create table if not exists public.salary_overrides (
+  emp_id text primary key,
+  ctc_monthly_inr numeric not null,
+  reason text not null,
+  name text,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['import_files', 'dataset_validations', 'customer_validations', 'people_categories', 'revenue_overrides', 'salary_overrides'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists %I on public.%I', t || '_admin', t);
+    execute format('create policy %I on public.%I for all to authenticated using (public.is_admin()) with check (public.is_admin())', t || '_admin', t);
+    execute format('revoke all on public.%I from anon', t);
+  end loop;
+end $$;
+drop policy if exists dataset_validations_read on public.dataset_validations;
+create policy dataset_validations_read on public.dataset_validations for select to authenticated using (public.can_see_all());
+drop policy if exists customer_validations_read on public.customer_validations;
+create policy customer_validations_read on public.customer_validations for select to authenticated using (public.can_see_all());
+drop policy if exists revenue_overrides_read on public.revenue_overrides;
+create policy revenue_overrides_read on public.revenue_overrides for select to authenticated using (public.can_see_all());
+
+-- Matt publishes from the app (his browser builds the snapshots), so admin may write them.
+drop policy if exists snapshots_admin_write on public.snapshots;
+create policy snapshots_admin_write on public.snapshots for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());

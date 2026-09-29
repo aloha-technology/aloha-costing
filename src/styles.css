@@ -309,3 +309,19 @@ input.num { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(
 .wrap-cell { white-space: normal; max-width: 320px; }
 input.wide-num { width: 100px; }
 input.text-in { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); width: 100%; min-width: 200px; }
+
+/* Data & validation */
+.dataset { border-left: 4px solid var(--line); }
+.dataset.validated { border-left-color: var(--good); }
+.dataset.pending { border-left-color: var(--warn); }
+.dataset.rejected, .dataset.missing { border-left-color: var(--bad); }
+.checks { list-style: none; margin: 8px 0 0; padding: 0; }
+.checks li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; padding: 5px 0; font-size: 13px; }
+.checks .lvl { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; margin-top: 1px; }
+.checks li.error .lvl { background: var(--bad); color: #fff; }
+.checks li.warning .lvl { background: var(--warn-bg); color: var(--warn); }
+.checks li.info .lvl { background: var(--low-bg); color: var(--low); }
+.checks .items { margin-top: 4px; line-height: 1.6; }
+label.upload-btn { cursor: pointer; }
+select.cat-select { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
+.validated-stamp { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }

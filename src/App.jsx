@@ -3,7 +3,7 @@ import Overview from './views/Overview.jsx';
 import Customers from './views/Customers.jsx';
 import Pms from './views/Pms.jsx';
 import Bench from './views/Bench.jsx';
-import DataChecks from './views/DataChecks.jsx';
+import DataValidation, { useImports } from './views/DataValidation.jsx';
 import Actions from './views/Actions.jsx';
 import WhatsApp from './views/WhatsApp.jsx';
 import Login, { ChangePassword } from './views/Login.jsx';
@@ -40,7 +40,7 @@ const NAV = {
     [
       'Data',
       [
-        ['checks', 'Data & validation', 'shield', 'Source files and cross-checks'],
+        ['checks', 'Data & validation', 'shield', 'Upload, validate, classify and correct the monthly data'],
         ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
       ],
     ],
@@ -66,7 +66,7 @@ const NAV = {
     [
       'Data',
       [
-        ['checks', 'Data & validation', 'shield', 'Source files and cross-checks'],
+        ['checks', 'Data & validation', 'shield', 'Upload, validate, classify and correct the monthly data'],
         ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
       ],
     ],
@@ -141,6 +141,8 @@ function Main({ viewer }) {
   const store = useActions(api);
   const comms = useComms(can.edit ? api : null);
   const master = useMaster(api);
+  const imports = useImports(api, can.seeAll);
+  const reloadModel = () => api.loadModel().then(setModel);
   const pmsById = useMemo(() => Object.fromEntries((model?.pms || []).map((p) => [p.id, p])), [model]);
   const go = (t, f = '') => {
     // Links into views a role doesn't have (e.g. a PM clicking a PM name) go home instead.
@@ -154,7 +156,7 @@ function Main({ viewer }) {
   if (error) return <div className="empty">{error}</div>;
   if (!model) return <div className="empty">Loading…</div>;
 
-  const ctx = { model, pmsById, go, focus, setFocus, store, comms, me, can, master };
+  const ctx = { model, pmsById, go, focus, setFocus, store, comms, me, can, master, imports, api, reloadModel };
   const overdue = summarize(store.actions).overdue;
   const closureRequests = store.actions.filter((a) => a.status === 'closure_requested').length;
   const current = items.find(([id]) => id === tab) || items[0];
@@ -227,7 +229,7 @@ function Main({ viewer }) {
           {tab === 'actions' && <Actions {...ctx} />}
           {tab === 'whatsapp' && <WhatsApp {...ctx} />}
           {tab === 'bench' && <Bench {...ctx} />}
-          {tab === 'checks' && <DataChecks {...ctx} />}
+          {tab === 'checks' && <DataValidation {...ctx} />}
           {tab === 'settings' && can.seeAll && <Settings master={master} can={can} key={master.loaded ? 'ready' : 'loading'} />}
         </main>
         {api.mode === 'preview' && (
