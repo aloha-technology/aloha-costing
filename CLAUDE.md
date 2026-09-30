@@ -75,7 +75,16 @@ Aloha builds IT solutions for small businesses.
   and drops them in `data/inbox/` (git-ignored, confidential). Treat Zoho and QB rows as
   possibly overlapping; match on invoice number + client before merging.
 
-## App #2: Collections (added 2026-09-29) — see docs/COLLECTIONS.md
+## Layout (2026-09-30): one tool, three areas
+- One sidebar with an area switch: **Directory** (`#m-…`: customers, teams, employees, contracts, campaigns,
+  standard rates), **Costing** (COST pages, allocations, actions, data), **Invoices** (`#c-…`: dues, reminders,
+  payments, tax invoices, billing register, reports). Shared layout: `AppShell` in `src/views/shell.jsx`.
+- Common info is edited only in Directory: contacts, name in contract, terms, profile, rate card, contracts.
+  Costing and Invoices show it read-only and link across (`#m-customers/?project=<code>` opens the payer).
+  PMs have no Directory, so they still see the project profile in Costing; the accounts role sees only Tax invoices.
+- Shared data loader for Directory and the Billing page: `src/master/useFoundation.js`.
+
+## App #2: Collections / "Invoices" area (added 2026-09-29) — see docs/COLLECTIONS.md
 - Pending-invoice follow-up, payments (currency, bank charges, payer vs contract name), contracts
   repository, tax invoices (accounts upload, Matt checks and sends), Excel report for Sid.
 - Same site and sign-in as Costing (hash routes `#c-…`, sidebar switch). Roles: admin writes, leadership
@@ -90,8 +99,9 @@ Aloha builds IT solutions for small businesses.
 - Data: `data/collections/` (local) or `col_*` tables + private `collections` bucket (cloud). Seeded from
   Matt's sheets by `npm run col:seed`; every seeded customer/open invoice is "not confirmed" until Matt checks it.
 
-## Master data (added 2026-09-29) — see docs/MASTER-DATA.md
-- Third section (`#m-…`, sidebar switch) for admin + leadership: customers, employees, PMs, campaigns, standard rates.
+## Master data / "Directory" area (added 2026-09-29) — see docs/MASTER-DATA.md
+- Directory (`#m-…`) for admin + leadership: customers, teams (PMs), employees, contracts, campaigns, standard rates.
+  The Billing register page sits in Invoices (`#c-billing`).
 - One home per fact, no copies: account fields (POCs with phone, legal name, terms, special discount, campaigns,
   linked projectCodes) live in `col_customers`; project profile/rate card/last-revised in `customer_profiles` /
   `customer_rates`; Matt's employee fields in `people_profiles` (never touched by admin_sync); PM WhatsApp in `pm_contacts`.

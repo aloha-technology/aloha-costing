@@ -4,6 +4,8 @@ import { RateCardCard, ProfileCard, ReviewTag } from '../views/Master.jsx';
 import { Act, Modal, amt, fmtDate } from '../collections/views/parts.jsx';
 import { projectCodesOf } from './engine.js';
 import { accountBilling, monthName } from './billing.js';
+import { ContractForm } from '../collections/views/Contracts.jsx';
+import { FileLink } from '../collections/views/parts.jsx';
 import { ContactsEditor, ContactsList } from '../collections/views/Contacts.jsx';
 import { normalizeContact } from '../collections/engine/contacts.js';
 
@@ -17,9 +19,16 @@ const FILTERS = [
 
 export default function MasterCustomers(ctx) {
   const { focus, accounts } = ctx;
-  const v = focus && !focus.startsWith('?') ? accounts.find((a) => a.account.id === focus) : null;
+  // "?project=<code>" (from Costing): open the paying customer that owns the project.
+  const project = focus?.startsWith('?project=') ? focus.slice(9) : null;
+  const v = project ? accounts.find((a) => projectCodesOf(a.account).includes(project)) : focus && !focus.startsWith('?') ? accounts.find((a) => a.account.id === focus) : null;
   if (v) return <AccountDetail {...ctx} v={v} />;
-  return <AccountList {...ctx} missingFilter={focus?.startsWith('?missing=') ? focus.slice(9) : ''} />;
+  return (
+    <>
+      {project && <div className="warnbox" style={{ marginBottom: 12 }}>That project isn’t linked to a paying customer yet. Link it under “Projects not linked” below.</div>}
+      <AccountList {...ctx} missingFilter={focus?.startsWith('?missing=') ? focus.slice(9) : ''} />
+    </>
+  );
 }
 
 function AccountList({ accounts, unlinked, go, can, ops, missingFilter, setFocus }) {
@@ -163,7 +172,7 @@ function AccountDetail(ctx) {
         ))}
         <span className="spacer" />
         <a className="btn" href={`#c-customers/${encodeURIComponent(a.id)}`}>
-          Dues in Collections →
+          Invoices & dues →
         </a>
       </div>
 
@@ -310,6 +319,8 @@ function AccountDetail(ctx) {
 
       <BillingHistory bill={bill} />
 
+      <ContractsCard a={a} ctx={ctx} />
+
       <div className="card">
         <div className="title-row" style={{ marginBottom: 6 }}>
           <h2 style={{ margin: 0 }}>Campaign reach-outs</h2>
@@ -346,6 +357,46 @@ function AccountDetail(ctx) {
       {editing === 'terms' && <TermsEditor a={a} ops={ops} onClose={() => setEditing(null)} />}
       {editing === 'campaign' && <CampaignForm accounts={[a]} ops={ops} me={ctx.me} onClose={() => setEditing(null)} />}
     </>
+  );
+}
+
+function ContractsCard({ a, ctx }) {
+  const [adding, setAdding] = useState(false);
+  const list = (ctx.contracts || []).filter((k) => k.customerId === a.id);
+  const formCtx = { data: { contracts: ctx.contracts || [], customers: ctx.accounts.map((v) => v.account) }, byId: { customers: Object.fromEntries(ctx.accounts.map((v) => [v.account.id, v.account])) }, ops: ctx.ops, api: ctx.colApi };
+  return (
+    <div className="card">
+      <div className="title-row" style={{ marginBottom: 6 }}>
+        <h2 style={{ margin: 0 }}>Contracts</h2>
+        <span className="spacer" />
+        {ctx.can.edit && (
+          <button className="small" onClick={() => setAdding(true)}>
+            + Upload contract
+          </button>
+        )}
+      </div>
+      {list.length ? (
+        <ul className="activity">
+          {list.map((k) => (
+            <li key={k.id}>
+              <strong>{k.title}</strong> <span className="flag">{k.type}</span>
+              <div className="muted small-text">
+                {k.legalName && `Signed as ${k.legalName} · `}
+                {k.startDate && `${fmtDate(k.startDate)} → ${k.endDate ? fmtDate(k.endDate) : 'open-ended'} · `}
+                {k.fileId && (
+                  <FileLink api={ctx.colApi} fileId={k.fileId}>
+                    {k.fileName}
+                  </FileLink>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="muted">No contract uploaded.</div>
+      )}
+      {adding && <ContractForm {...formCtx} initial={{ customerId: a.id, legalName: a.legalName }} onClose={() => setAdding(false)} />}
+    </div>
   );
 }
 

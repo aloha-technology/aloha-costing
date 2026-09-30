@@ -10,8 +10,8 @@ import Login, { ChangePassword } from './views/Login.jsx';
 import People from './views/People.jsx';
 import Play from './views/Play.jsx';
 import Allocations from './views/Allocations.jsx';
-import { Icon, Glossary, BenchBanner, AppSwitch } from './views/shell.jsx';
-import { useMaster, Settings } from './views/Master.jsx';
+import { Glossary, BenchBanner, AppShell, AREAS } from './views/shell.jsx';
+import { useMaster } from './views/Master.jsx';
 import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
 import { useViewer } from './data/useViewer.js';
@@ -20,63 +20,32 @@ import CollectionsApp from './collections/CollectionsApp.jsx';
 import { useColApi } from './collections/data/useColApi.js';
 import MasterApp from './master/MasterApp.jsx';
 
-// Left navigation per role: groups of [id, label, icon, subtitle].
+// Costing navigation per role: groups of [id, label, icon, subtitle]. Standard rates live in Directory.
+const COSTING = [
+  ['', [['overview', 'Dashboard', 'grid', 'Company COST, spend layers and where to act']]],
+  [
+    'Portfolio',
+    [
+      ['customers', 'Customers', 'building', 'Billing, spend and COST by customer'],
+      ['pms', 'Teams', 'users', 'COST by PM team, with bench and support'],
+      ['people', 'People', 'user', 'Allocations and salaries, with a what-if'],
+      ['bench', 'Bench', 'pause', 'People on bench and what it costs'],
+    ],
+  ],
+  [
+    'Improve',
+    [
+      ['allocations', 'Allocations', 'swap', 'Who is on which customer, with live COST'],
+      ['play', 'Play', 'sliders', 'Find the best path to the COST target'],
+      ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
+      ['whatsapp', 'WhatsApp', 'chat', 'Weekly digests and alerts for PMs'],
+    ],
+  ],
+  ['Data', [['checks', 'Data & validation', 'upload', 'Upload, validate and publish the monthly data']]],
+];
 const NAV = {
-  admin: [
-    ['Overview', [['overview', 'Dashboard', 'grid', 'Company COST, spend layers and where to act']]],
-    [
-      'Portfolio',
-      [
-        ['customers', 'Customers', 'building', 'Billing, spend and COST by customer'],
-        ['pms', 'Teams', 'users', 'COST by PM team, with bench and support'],
-        ['people', 'People', 'user', 'Everyone, their allocations and salaries'],
-        ['bench', 'Bench', 'pause', 'People on bench and what it costs'],
-      ],
-    ],
-    [
-      'Improve',
-      [
-        ['allocations', 'Allocations', 'swap', 'Add or remove people and set %, with live COST'],
-        ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
-        ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
-        ['whatsapp', 'WhatsApp', 'chat', 'Weekly digests and alerts for PMs'],
-      ],
-    ],
-    [
-      'Data',
-      [
-        ['checks', 'Data & validation', 'shield', 'Upload, validate, classify and correct the monthly data'],
-        ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
-      ],
-    ],
-  ],
-  leadership: [
-    ['Overview', [['overview', 'Dashboard', 'grid', 'Company COST, spend layers and where to act']]],
-    [
-      'Portfolio',
-      [
-        ['customers', 'Customers', 'building', 'Billing, spend and COST by customer'],
-        ['pms', 'Teams', 'users', 'COST by PM team, with bench and support'],
-        ['people', 'People', 'user', 'Everyone, their allocations and salaries'],
-        ['bench', 'Bench', 'pause', 'People on bench and what it costs'],
-      ],
-    ],
-    [
-      'Improve',
-      [
-        ['allocations', 'Allocations', 'swap', 'Who is on which customer, with live COST'],
-        ['play', 'Play', 'sliders', 'Explore the best path to the COST target'],
-        ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
-      ],
-    ],
-    [
-      'Data',
-      [
-        ['checks', 'Data & validation', 'shield', 'Upload, validate, classify and correct the monthly data'],
-        ['settings', 'Settings', 'cog', 'Aloha standard rates and rate revision'],
-      ],
-    ],
-  ],
+  admin: COSTING,
+  leadership: COSTING.map(([t, l]) => [t, l.filter(([id]) => id !== 'whatsapp')]),
   pm: [
     [
       'My work',
@@ -108,35 +77,37 @@ export default function App() {
   return <Apps viewer={viewer} />;
 }
 
-// Three apps share the sign-in: Project Costing, Collections (#c-…) and Master data (#m-…).
-// PMs only get Costing; the accounts team only the Collections tax-invoice portal;
-// Master data is for Matt and leadership.
-const appOf = (role) => {
-  if (role === 'accounts') return 'collections';
+// One tool, three areas sharing the sign-in: Directory (#m-…: customers, teams, employees),
+// Costing and Invoices (#c-…). PMs only get Costing; the accounts team only the Invoices
+// tax-invoice portal; Directory is for Matt and leadership.
+const areaOf = (role) => {
+  if (role === 'accounts') return 'invoices';
   if (role === 'pm') return 'costing';
   const h = location.hash;
-  return h.startsWith('#c-') ? 'collections' : h.startsWith('#m-') ? 'master' : 'costing';
+  return h.startsWith('#c-') ? 'invoices' : h.startsWith('#m-') ? 'directory' : 'costing';
 };
-const HOME = { costing: '#overview', collections: '#c-dashboard', master: '#m-overview' };
-const LABEL = { costing: 'Project Costing', collections: 'Collections', master: 'Master data' };
 function Apps({ viewer }) {
   const role = viewer.me.role;
-  const [app, setApp] = useState(() => appOf(role));
+  const [area, setArea] = useState(() => areaOf(role));
   const colApi = useColApi(viewer);
   useEffect(() => {
-    const onHash = () => setApp(appOf(role));
+    const onHash = () => setArea(areaOf(role));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [role]);
-  const allowed = role === 'admin' || role === 'leadership' ? ['costing', 'collections', 'master'] : [];
-  const switches = allowed.filter((x) => x !== app).map((x) => ({ label: LABEL[x], go: () => ((location.hash = HOME[x]), setApp(x)) }));
-  if (app === 'costing') return <Main viewer={viewer} switches={switches} />;
+  const areas = role === 'admin' || role === 'leadership' ? ['directory', 'costing', 'invoices'] : [];
+  const onArea = (x) => {
+    location.hash = AREAS[x].home;
+    setArea(x);
+  };
+  const shell = { areas, onArea };
+  if (area === 'costing') return <Main viewer={viewer} shell={shell} />;
   if (!colApi) return <div className="empty">Loading…</div>;
-  if (app === 'master') return <MasterApp viewer={viewer} colApi={colApi} switches={switches} />;
-  return <CollectionsApp viewer={viewer} api={colApi} switches={switches} />;
+  if (area === 'directory') return <MasterApp viewer={viewer} colApi={colApi} shell={shell} />;
+  return <CollectionsApp viewer={viewer} api={colApi} shell={shell} />;
 }
 
-function Main({ viewer, switches }) {
+function Main({ viewer, shell }) {
   const { me, api, can } = viewer;
   const groups = NAV[me.role] || NAV.pm;
   const items = useMemo(() => groups.flatMap(([, list]) => list), [groups]);
@@ -149,7 +120,6 @@ function Main({ viewer, switches }) {
   });
   const [focus, setFocus] = useState(() => decodeURIComponent(location.hash.split('/')[1] || ''));
   const [changingPw, setChangingPw] = useState(false);
-  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     api.loadModel().then(setModel, (e) => setError(e.message));
@@ -183,7 +153,6 @@ function Main({ viewer, switches }) {
     // Links into views a role doesn't have (e.g. a PM clicking a PM name) go home instead.
     setTabState(has(t) ? t : items[0][0]);
     setFocus(has(t) ? f : '');
-    setNavOpen(false);
     window.scrollTo(0, 0);
   };
 
@@ -197,64 +166,49 @@ function Main({ viewer, switches }) {
   const current = items.find(([id]) => id === tab) || items[0];
 
   return (
-    <div className={`shell ${navOpen ? 'nav-open' : ''}`} onClick={(e) => navOpen && e.target === e.currentTarget && setNavOpen(false)}>
-      <aside className="side">
-        <div className="brand">
-          <div className="brand-mark">A</div>
-          <div>
-            <div className="brand-name">Aloha Technology</div>
-            <div className="brand-sub">Project Costing</div>
+    <AppShell
+      area="costing"
+      {...shell}
+      groups={groups}
+      tab={tab}
+      onTab={go}
+      badges={{ actions: [{ n: overdue, title: 'Overdue' }, { n: can.edit ? closureRequests : 0, tone: 'good', title: 'Closure requested' }] }}
+      title={current[1]}
+      sub={current[3]}
+      me={me}
+      chips={
+        <>
+          <span className="chip">
+            <strong>{model.period}</strong>
+          </span>
+          <span className="chip" title="Rate used to convert invoiced USD to INR (from the costing sheet)">
+            US$1 = <strong>₹{model.fx?.toFixed(2)}</strong>
+          </span>
+          <span className="chip accent" title="COST is Aloha's name for actual profit %">
+            COST target <strong>{Math.round(model.target * 100)}%</strong>
+          </span>
+          <Glossary target={model.target} />
+        </>
+      }
+      account={
+        api.mode === 'cloud' && (
+          <div style={{ marginTop: 8 }}>
+            <button onClick={() => setChangingPw(true)}>Change password</button>
+            <button onClick={viewer.signOut}>Sign out</button>
           </div>
-        </div>
-        <AppSwitch items={switches} />
-        {groups.map(([title, list]) => (
-          <div className="nav-group" key={title}>
-            <div className="nav-title">{title}</div>
-            {list.map(([id, label, icon]) => (
-              <button key={id} className={`nav-item ${tab === id ? 'on' : ''}`} onClick={() => go(id)}>
-                <Icon name={icon} />
-                {label}
-                {id === 'actions' && overdue > 0 && <span className="badge" title="Overdue">{overdue}</span>}
-                {id === 'actions' && can.edit && closureRequests > 0 && <span className="badge good" title="Closure requested">{closureRequests}</span>}
-              </button>
-            ))}
+        )
+      }
+      preview={
+        api.mode === 'preview' && (
+          <div className="preview-bar">
+            Previewing as <strong>{me.role === 'pm' ? pmsById[me.pmId]?.name || me.pmId : 'leadership'}</strong> (read-only).{' '}
+            <a href={location.pathname}>Back to admin</a>
           </div>
-        ))}
-        <div className="side-foot">
-          <div className="who-name">{me.name}</div>
-          <div className="who-role">{me.role}</div>
-          {api.mode === 'cloud' && (
-            <div style={{ marginTop: 8 }}>
-              <button onClick={() => setChangingPw(true)}>Change password</button>
-              <button onClick={viewer.signOut}>Sign out</button>
-            </div>
-          )}
-        </div>
-      </aside>
+        )
+      }
+      footer={`${ROLE_NOTE[me.role]} · ${api.mode === 'cloud' ? 'published' : 'local data'} ${new Date(model.generatedAt).toLocaleDateString()}`}
+    >
 
-      <div className="main-col">
-        <header className="topbar">
-          <button className="menu-btn" aria-label="Menu" onClick={() => setNavOpen((o) => !o)}>
-            ☰
-          </button>
-          <div>
-            <h1>{current[1]}</h1>
-            <div className="page-sub">{current[3]}</div>
-          </div>
-          <div className="chips">
-            <span className="chip">
-              Period <strong>{model.period}</strong>
-            </span>
-            <span className="chip" title="Rate used to convert invoiced USD to INR (from the costing sheet)">
-              US$1 = <strong>₹{model.fx?.toFixed(2)}</strong>
-            </span>
-            <span className="chip accent" title="COST is Aloha's name for actual profit %">
-              COST target <strong>{Math.round(model.target * 100)}%</strong>
-            </span>
-            <Glossary target={model.target} />
-          </div>
-        </header>
-        <main className="content">
           {me.role === 'pm' && <BenchBanner model={model} me={me} go={go} />}
           {tab === 'overview' && <Overview {...ctx} />}
           {tab === 'mine' && <Pms {...ctx} focus={me.pmId} setFocus={() => {}} />}
@@ -267,19 +221,6 @@ function Main({ viewer, switches }) {
           {tab === 'whatsapp' && <WhatsApp {...ctx} />}
           {tab === 'bench' && <Bench {...ctx} />}
           {tab === 'checks' && <DataValidation {...ctx} />}
-          {tab === 'settings' && can.seeAll && <Settings master={master} can={can} key={master.loaded ? 'ready' : 'loading'} />}
-        </main>
-        {api.mode === 'preview' && (
-          <div className="preview-bar">
-            Previewing as <strong>{me.role === 'pm' ? pmsById[me.pmId]?.name || me.pmId : 'leadership'}</strong> (read-only).{' '}
-            <a href={location.pathname}>Back to admin</a>
-          </div>
-        )}
-        <footer>
-          {ROLE_NOTE[me.role]} · {api.mode === 'cloud' ? 'published' : 'local data'} {new Date(model.generatedAt).toLocaleString()} · spend from payroll
-          (CTC × allocation)
-        </footer>
-      </div>
-    </div>
+    </AppShell>
   );
 }

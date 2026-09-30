@@ -13,6 +13,14 @@ const PATHS = {
   chat: 'M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5h.5a8.5 8.5 0 0 1 8 8z',
   shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
   swap: 'M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16',
+  book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z',
+  chart: 'M3 3v18h18M7 15l4-4 3 3 5-6',
+  receipt: 'M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2zM9 7h6M9 11h6M9 15h4',
+  file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5',
+  megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
+  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
+  card: 'M2 5h20v14H2zM2 10h20M6 15h4',
+  upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
   cog: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
 };
 
@@ -98,6 +106,86 @@ export function AppSwitch({ items }) {
           ⇄ {x.label}
         </a>
       ))}
+    </div>
+  );
+}
+
+// The three areas of the Aloha tool, shown as a switch at the top of the sidebar.
+export const AREAS = {
+  directory: { label: 'Directory', icon: 'book', home: '#m-overview', hint: 'Customers, teams, employees' },
+  costing: { label: 'Costing', icon: 'chart', home: '#overview', hint: 'COST, spend and actions' },
+  invoices: { label: 'Invoices', icon: 'receipt', home: '#c-dashboard', hint: 'Dues, payments, billing' },
+};
+
+// One layout for every area: brand, area switch, the area's navigation, the signed-in user, top bar.
+// groups: [[title, [[id, label, icon], …]], …]; badges: { [id]: [{ n, tone, title }] }
+export function AppShell({ area, areas = [], onArea, groups, tab, onTab, badges = {}, title, sub, chips, me, account, preview, footer, children }) {
+  const [navOpen, setNavOpen] = useState(false);
+  const pick = (fn) => (...a) => {
+    setNavOpen(false);
+    fn(...a);
+  };
+  return (
+    <div className={`shell ${navOpen ? 'nav-open' : ''}`} onClick={(e) => navOpen && e.target === e.currentTarget && setNavOpen(false)}>
+      <aside className="side">
+        <div className="brand">
+          <div className="brand-mark">A</div>
+          <div>
+            <div className="brand-name">Aloha Technology</div>
+            <div className="brand-sub">{AREAS[area]?.label}</div>
+          </div>
+        </div>
+        {areas.length > 1 && (
+          <div className="areas" role="tablist" aria-label="Area">
+            {areas.map((a) => (
+              <button key={a} role="tab" aria-selected={a === area} className={`area ${a === area ? 'on' : ''}`} title={AREAS[a].hint} onClick={pick(() => onArea(a))}>
+                <Icon name={AREAS[a].icon} />
+                <span>{AREAS[a].label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <nav className="side-nav">
+          {groups.map(([gTitle, list]) => (
+            <div className="nav-group" key={gTitle}>
+              {gTitle && <div className="nav-title">{gTitle}</div>}
+              {list.map(([id, label, icon]) => (
+                <button key={id} className={`nav-item ${tab === id ? 'on' : ''}`} onClick={pick(() => onTab(id))}>
+                  <Icon name={icon} />
+                  {label}
+                  {(badges[id] || [])
+                    .filter((b) => b.n > 0)
+                    .map((b, i) => (
+                      <span key={i} className={`badge ${b.tone || ''}`} title={b.title} style={i ? { marginLeft: 4 } : undefined}>
+                        {b.n}
+                      </span>
+                    ))}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="side-foot">
+          <div className="who-name">{me.name}</div>
+          <div className="who-role">{me.role}</div>
+          {account}
+        </div>
+      </aside>
+      <div className="main-col">
+        <header className="topbar">
+          <button className="menu-btn" aria-label="Menu" onClick={() => setNavOpen((o) => !o)}>
+            ☰
+          </button>
+          <div className="topbar-title">
+            <h1>{title}</h1>
+            {sub && <div className="page-sub">{sub}</div>}
+          </div>
+          {chips && <div className="chips">{chips}</div>}
+        </header>
+        <main className="content">{children}</main>
+        {preview}
+        {footer && <footer>{footer}</footer>}
+      </div>
     </div>
   );
 }

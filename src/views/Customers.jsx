@@ -166,8 +166,9 @@ function CustomerDetail({ c, model, pmsById, store, go, can, master, imports, ba
         )}
       </section>
 
-      {master && <ProfileCard c={c} master={master} can={can} pmsById={pmsById} />}
-      {master && can.seeAll && <RateCardCard c={c} master={master} can={can} />}
+      {/* Profile and rate card are kept in Directory; PMs (no Directory) see the profile here. */}
+      {master && !can.seeAll && <ProfileCard c={c} master={master} can={can} pmsById={pmsById} />}
+      {can.seeAll && <DirectoryLink code={c.code} />}
 
       <section className="card">
         <h2>Spend layers</h2>
@@ -261,6 +262,22 @@ function CustomerDetail({ c, model, pmsById, store, go, can, master, imports, ba
 }
 
 const fmtSeats = (n) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(2));
+
+// Link to where the customer's contacts, profile and rate card are kept.
+function DirectoryLink({ code }) {
+  return (
+    <section className="card link-card">
+      <div>
+        <strong>Profile, contacts and rate card</strong>
+        <div className="muted small-text">Kept in Directory with the paying customer, so Costing and Invoices use the same details.</div>
+      </div>
+      <span className="spacer" />
+      <a className="btn" href={`#m-customers/?project=${encodeURIComponent(code)}`}>
+        Open in Directory →
+      </a>
+    </section>
+  );
+}
 
 // A customer added in the app before it appears in billing/allocation data: profile only.
 function ManualCustomer({ code, p, model, master, can, pmsById, back }) {

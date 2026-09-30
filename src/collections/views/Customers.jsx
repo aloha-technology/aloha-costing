@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { Table } from '../../views/ui.jsx';
 import { AgePill, Prio, Act, amt, fmtDate, monthLabel, FileLink, Modal } from './parts.jsx';
 import InvoiceTable from './InvoiceTable.jsx';
-import { ContractForm } from './Contracts.jsx';
 import { addDays } from '../engine/dates.js';
 import { contactsFor, normalizeContact } from '../engine/contacts.js';
 import { ContactsEditor, ContactsList } from './Contacts.jsx';
@@ -148,7 +147,6 @@ function CustomerDetail(ctx) {
   const payments = data.payments.filter((p) => p.customerId === c.id).sort((a, b) => b.date.localeCompare(a.date));
   const emails = data.outbox.filter((e) => e.customerId === c.id && e.status !== 'cancelled').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const [editing, setEditing] = useState(false);
-  const [addingContract, setAddingContract] = useState(false);
   const [noteText, setNote] = useState('');
   const [promise, setPromise] = useState(null);
 
@@ -170,9 +168,12 @@ function CustomerDetail(ctx) {
         )}
         {can.edit && (
           <button className="small" onClick={() => setEditing(true)}>
-            Edit details & contacts
+            Invoice settings
           </button>
         )}
+        <a className="btn" href={`#m-customers/${encodeURIComponent(c.id)}`}>
+          Contacts & profile in Directory →
+        </a>
       </div>
 
       <div className="kpis compact-kpis">
@@ -229,14 +230,19 @@ function CustomerDetail(ctx) {
                       open
                     </a>
                   )}
-                  {(a.kind === 'contact' || a.kind === 'pm') && can.edit && (
+                  {a.kind === 'contact' && can.edit && (
+                    <a className="right" href={`#m-customers/${encodeURIComponent(c.id)}`}>
+                      add in Directory
+                    </a>
+                  )}
+                  {a.kind === 'pm' && can.edit && (
                     <a className="right" onClick={() => setEditing(true)}>
                       add
                     </a>
                   )}
                   {a.kind === 'contract' && can.edit && (
-                    <a className="right" onClick={() => setAddingContract(true)}>
-                      upload
+                    <a className="right" href="#m-contracts">
+                      upload in Directory
                     </a>
                   )}
                 </li>
@@ -318,11 +324,9 @@ function CustomerDetail(ctx) {
           <div className="title-row" style={{ marginBottom: 6 }}>
             <h2 style={{ margin: 0 }}>Contracts</h2>
             <span className="spacer" />
-            {can.edit && (
-              <button className="small" onClick={() => setAddingContract(true)}>
-                + Upload contract
-              </button>
-            )}
+            <a className="small-text" href="#m-contracts">
+              Contracts in Directory →
+            </a>
           </div>
           {contracts.length ? (
             <ul className="activity">
@@ -362,7 +366,6 @@ function CustomerDetail(ctx) {
       </div>
 
       {editing && <CustomerEditor c={c} ops={ops} onClose={() => setEditing(false)} />}
-      {addingContract && <ContractForm {...ctx} initial={{ customerId: c.id, legalName: c.legalName }} onClose={() => setAddingContract(false)} />}
       {promise && (
         <Modal
           title={`Promise to pay: ${c.name}`}
@@ -449,11 +452,11 @@ function CustomerEditor({ c, ops, onClose }) {
     onClose();
   };
   return (
-    <Modal title={`Edit ${c.name}`} onClose={onClose} wide footer={<Act className="primary" onClick={save}>Save</Act>}>
-      <h3 style={{ marginTop: 0 }}>Contacts</h3>
-      <ContactsEditor contacts={f.contacts} onChange={(list) => set('contacts', list)} />
-
-      <h3>Aloha side</h3>
+    <Modal title={`Invoice settings: ${c.name}`} onClose={onClose} wide footer={<Act className="primary" onClick={save}>Save</Act>}>
+      <p className="hint" style={{ marginTop: 0 }}>
+        Contacts, name in contract and commercial terms are edited in <a href={`#m-customers/${encodeURIComponent(c.id)}`}>Directory</a>.
+      </p>
+      <h3 style={{ marginTop: 0 }}>Aloha side</h3>
       <div className="form-grid">
         <label>
           PM name
@@ -467,33 +470,13 @@ function CustomerEditor({ c, ops, onClose }) {
           Billing code
           <input value={f.billingCode || ''} onChange={(e) => set('billingCode', e.target.value)} />
         </label>
-        <label>
-          Payment terms (days)
-          <input type="number" value={f.paymentTermsDays || 15} onChange={(e) => set('paymentTermsDays', e.target.value)} />
-        </label>
-        <label>
-          Entity
-          <select value={f.entity || ''} onChange={(e) => set('entity', e.target.value)}>
-            <option value="">—</option>
-            <option value="IND">IND</option>
-            <option value="SGP">SGP</option>
-            <option value="US">US</option>
-          </select>
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={f.active !== false} onChange={(e) => set('active', e.target.checked)} /> Active account
-        </label>
         <label className="check">
           <input type="checkbox" checked={Boolean(f.doNotSend)} onChange={(e) => set('doNotSend', e.target.checked)} /> Do not send any reminders to this customer
         </label>
       </div>
 
-      <h3>Names (for the payer check)</h3>
+      <h3>Names used to match invoices and payments</h3>
       <div className="form-grid">
-        <label className="wide">
-          Customer name in the contract
-          <input value={f.legalName || ''} onChange={(e) => set('legalName', e.target.value)} placeholder="Exact legal name the contract was signed with" />
-        </label>
         <label>
           Names in Zoho / QuickBooks (one per line)
           <textarea rows={3} value={f.zohoNamesText} onChange={(e) => set('zohoNamesText', e.target.value)} />
