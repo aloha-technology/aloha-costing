@@ -115,6 +115,12 @@ Aloha builds IT solutions for small businesses.
 - Billing register (`billing_records`, Master data → Billing): monthly lines from `model.invoicingLines`, logged
   changes and reported company totals. Never reconstruct seat history backwards from deltas (it overshoots).
 
+## Salary rules (leadership, 2026-09-30) — Costing → Salary rules (admin + leadership)
+- Caps per level (monthly CTC): fresher (<1 yr) ₹25k, mid-level (1–5 yrs) ₹40k, senior dev (5+ yrs or "Senior" title) ₹70k.
+  Per group of 3 devs on a project: at most one mid-level or senior (not both), allocated CTC ≤ ₹90k (CTC × %).
+  Scope: designations containing "Developer". Fresher cap and level bands were not given by leadership: defaults, editable.
+- Engine ; rules stored in costing settings (). Flagged people = reviews on hold.
+
 ## Terminology (Aloha internal) — use everywhere in the UI
 - **COST** = actual **profit %** = (revenue − spend) / revenue. Target 70%. Never label it "margin".
 - **Spend** = rupees for people's time (CTC × allocation). **Managed** = COST ≥ 70% on project spend

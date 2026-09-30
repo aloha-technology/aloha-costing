@@ -12,6 +12,7 @@ import Play from './views/Play.jsx';
 import Allocations from './views/Allocations.jsx';
 import { Glossary, BenchBanner, AppShell, AREAS } from './views/shell.jsx';
 import { useMaster } from './views/Master.jsx';
+import SalaryRules from './views/SalaryRules.jsx';
 import { useActions } from './actions/useActions.js';
 import { useComms } from './whatsapp/useComms.js';
 import { useViewer } from './data/useViewer.js';
@@ -38,6 +39,7 @@ const COSTING = [
       ['allocations', 'Allocations', 'swap', 'Who is on which customer, with live COST'],
       ['play', 'Play', 'sliders', 'Find the best path to the COST target'],
       ['actions', 'Actions', 'check', 'Tracked actions and TATs'],
+      ['salary', 'Salary rules', 'shield', 'People above their role cap and teams breaking the group-of-3 rule'],
       ['whatsapp', 'WhatsApp', 'chat', 'Weekly digests and alerts for PMs'],
     ],
   ],
@@ -218,6 +220,7 @@ function Main({ viewer, shell }) {
           {tab === 'play' && can.seeAll && <Play {...ctx} />}
           {tab === 'allocations' && <Allocations {...ctx} />}
           {tab === 'actions' && <Actions {...ctx} />}
+          {tab === 'salary' && can.seeAll && <SalaryRules {...ctx} />}
           {tab === 'whatsapp' && <WhatsApp {...ctx} />}
           {tab === 'bench' && <Bench {...ctx} />}
           {tab === 'checks' && <DataValidation {...ctx} />}
