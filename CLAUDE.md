@@ -119,7 +119,7 @@ Aloha builds IT solutions for small businesses.
 - Caps per level (monthly CTC): fresher (<1 yr) ₹25k, mid-level (1–5 yrs) ₹40k, senior dev (5+ yrs or "Senior" title) ₹70k.
   Per group of 3 devs on a project: at most one mid-level or senior (not both), allocated CTC ≤ ₹90k (CTC × %).
   Scope: designations containing "Developer". Fresher cap and level bands were not given by leadership: defaults, editable.
-- Engine ; rules stored in costing settings (). Flagged people = reviews on hold.
+- Engine `src/engine/salaryRules.js`; rules stored in costing settings (`salaryRules`). Flagged people = reviews on hold.
 
 ## Terminology (Aloha internal) — use everywhere in the UI
 - **COST** = actual **profit %** = (revenue − spend) / revenue. Target 70%. Never label it "margin".
