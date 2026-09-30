@@ -378,3 +378,20 @@ footer { opacity: 0.8; }
 .facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .empty-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 6px 0; }
 .page-tabs { margin: 4px 0 12px; }
+
+/* Directory overview: clickable numbers, "Do next" steps, x-of-y progress rows */
+.kpi-btn { font: inherit; text-align: left; cursor: pointer; color: inherit; width: 100%; }
+.kpi-btn:hover { border-color: var(--accent); }
+.steps { margin: 0; padding-left: 22px; }
+.steps > li { padding: 12px 0; border-top: 1px solid var(--line-2); }
+.steps > li:first-child { border-top: 0; padding-top: 4px; }
+.steps > li::marker { color: var(--accent); font-weight: 700; }
+.step-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.step-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.step-items a.tag { cursor: pointer; }
+.step-items a.tag:hover { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
+.progress-row { display: grid; grid-template-columns: minmax(150px, 1.1fr) 1.4fr 72px; gap: 12px; align-items: center; width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: left; padding: 8px 6px; border-radius: 8px; cursor: pointer; }
+.progress-row:hover { background: var(--bg); }
+.progress-row .p-label { display: flex; flex-direction: column; min-width: 0; }
+.progress-row .p-count { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 600px) { .progress-row { grid-template-columns: 1fr 64px; } .progress-row .bar-track { display: none; } }

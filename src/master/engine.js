@@ -214,19 +214,21 @@ export function campaignRows(accounts) {
     .sort((x, y) => (y.date || '').localeCompare(x.date || ''));
 }
 
-// How complete the foundation is, for the overview.
+// How complete the foundation is, for the overview: { done, total } per item.
 export function completeness(accountViews, employees) {
   const active = accountViews.filter((v) => v.account.active !== false);
-  const pctOf = (list, f) => (list.length ? list.filter(f).length / list.length : null);
+  const count = (list, f) => ({ done: list.filter(f).length, total: list.length });
+  // Revision dates live on each project's rate card, so they are counted per project.
+  const rated = active.flatMap((v) => v.projects.filter((p) => p.rateCard));
   return {
     accounts: active.length,
-    billingEmail: pctOf(active, (v) => v.billingContact),
-    phone: pctOf(active, (v) => (v.account.contacts || []).some((c) => c.phone)),
-    projectsLinked: pctOf(active, (v) => v.projects.length > 0),
-    revisionDate: pctOf(active.filter((v) => v.projects.some((p) => p.rateCard)), (v) => v.revisionStatus && v.revisionStatus !== 'unknown'),
+    billingEmail: count(active, (v) => v.billingContact),
+    phone: count(active, (v) => (v.account.contacts || []).some((c) => c.phone)),
+    projectsLinked: count(active, (v) => v.projects.length > 0),
+    revisionDate: count(rated, (p) => p.rateCard.lastRevised),
     employees: employees.length,
-    joinDate: pctOf(employees, (e) => e.joinedOn),
-    team: pctOf(employees, (e) => e.teamSource === 'entered'),
-    skills: pctOf(employees, (e) => e.skills),
+    joinDate: count(employees, (e) => e.joinedOn),
+    team: count(employees, (e) => e.teamSource === 'entered'),
+    skills: count(employees, (e) => e.skills),
   };
 }

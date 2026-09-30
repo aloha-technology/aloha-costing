@@ -101,8 +101,8 @@ test('campaigns and completeness', () => {
   const rows = campaignRows([{ id: 'a', name: 'A', campaigns: [{ name: 'Referral', date: '2026-09-01' }, { name: 'Rate rise', date: '2026-09-20' }] }]);
   assert.deepEqual(rows.map((r) => r.name), ['Rate rise', 'Referral']);
   const c = completeness([{ account: { active: true, contacts: [] }, projects: [], billingContact: null, revisionStatus: null }], [{ joinedOn: '2020-01-01', teamSource: 'entered', skills: 'x' }]);
-  assert.equal(c.billingEmail, 0);
-  assert.equal(c.joinDate, 1);
+  assert.deepEqual(c.billingEmail, { done: 0, total: 1 });
+  assert.deepEqual(c.joinDate, { done: 1, total: 1 });
 });
 
 // Real data (local only): every model employee and PM builds without gaps in the numbers.
